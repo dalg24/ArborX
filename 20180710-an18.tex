@@ -1,0 +1,356 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Dreuw & Deselaer's Poster
+% LaTeX Template
+% Version 1.0 (11/04/13)
+%
+% Created by:
+% Philippe Dreuw and Thomas Deselaers
+% http://www-i6.informatik.rwth-aachen.de/~dreuw/latexbeamerposter.php
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% License:
+% CC BY-NC-SA 3.0 (http://creativecommons.org/licenses/by-nc-sa/3.0/)
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%----------------------------------------------------------------------------------------
+% PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[final,hyperref={pdfpagelabels=false}]{beamer}
+
+% Use the beamerposter package for laying out the poster with a portrait orientation and an a0 paper size
+\usepackage[size=custom, width=76.2, height=101.6, scale=1.4]{beamerposter}
+
+% Choose beamerposter theme
+\usetheme{/ORNL}
+
+% English language/hyphenation
+\usepackage[english]{babel}
+
+% For including math equations, theorems, symbols, etc
+\usepackage{amsmath,amsthm,amssymb,latexsym}
+
+\usepackage{tikz}
+\newcommand\PlaceText[3]{%
+\begin{tikzpicture}[remember picture,overlay]
+\node[outer sep=0pt,inner sep=0pt,anchor=south west]
+  at ([xshift=#1,yshift=-#2]current page.north west) {#3};
+\end{tikzpicture}%
+}
+% Code coloring
+\usepackage{listings}
+\lstdefinelanguage{SWIG}{%
+  keywords={module,include,apply}
+}
+\definecolor{hellgelb} {rgb}{1.0,1.0,0.8}
+\definecolor{darkgreen}{rgb}{0.0,0.2,0.13}
+\lstset{%
+  backgroundcolor=\color{hellgelb!95!MSUgreen},
+  % backgroundcolor=\color{white!92!MSUgreen},
+  basicstyle=\bf\ttfamily\small,
+  breakautoindent=true,
+  breaklines=true,
+  captionpos=b,
+  commentstyle=\color{orange},
+  escapechar=|,
+  extendedchars=true,
+  float=hbp,
+  frame=single,
+  identifierstyle=\color{black},
+  keywordstyle=\color{blue},
+  numberstyle=\tiny,
+  showspaces=false,
+  showstringspaces=false,
+  stringstyle=\color{purple},
+  tabsize=2,
+}
+%\usepackage{times}\usefonttheme{professionalfonts}  % Uncomment to use Times as the main font
+%\usefonttheme[onlymath]{serif} % Uncomment to use a Serif font within math environments
+
+% Use bold for everything within the math environment
+\boldmath
+
+% Top and bottom rules for tables
+\usepackage{booktabs}
+
+% Location of the graphics files
+\graphicspath{{figs/}}
+
+% A fix for figure numbering
+\usecaptiontemplate{\small\structure{\insertcaptionname~\insertcaptionnumber: }\insertcaption}
+
+\usepackage{subcaption}
+
+%----------------------------------------------------------------------------------------
+% TITLE SECTION
+%----------------------------------------------------------------------------------------
+
+% Poster title
+% \title{\huge Parallel Bounding Volume Hierarchy Implementation using MPI+Kokkos}
+\title{\huge Parallel Bounding Volume Hierarchy using MPI+Kokkos}
+
+% Author(s)
+\author{D.~Lebrun-Grandi{\'e}, A.~Prokopenko, S.~Slattery, B.~Turcksin}
+
+% Institution(s)
+\institute{Oak Ridge National Laboratory}
+
+%----------------------------------------------------------------------------------------
+% FOOTER TEXT
+%----------------------------------------------------------------------------------------
+
+\newcommand{\leftfoot}{}%{http://www.LaTeXTemplates.com} % Left footer text
+
+\newcommand{\rightfoot}{}%{john@smith.com} % Right footer text
+
+%----------------------------------------------------------------------------------------
+\begin{document}
+
+% White space under blocks
+\addtobeamertemplate{block end}{}{\vspace*{2ex}}
+
+% The whole poster is enclosed in one beamer frame
+\begin{frame}[t,fragile]
+
+% The whole poster consists of two major columns, each of which can be
+% subdivided further with another \begin{columns} block - the [t] argument
+% aligns each column's content to the top
+\begin{columns}[t]
+
+%========================================================================================
+% Empty spacer column
+\begin{column}{.02\textwidth}\end{column}
+
+% The first column
+\begin{column}{.450\textwidth}
+
+%----------------------------------------------------------------------------------------
+% DESCRIPTION
+%----------------------------------------------------------------------------------------
+\begin{block}{\centering Motivation}
+
+  Search for close geometric objects is an important algorithm of many
+  scientific applications.
+  Examples include computing interpolation for overlapping meshes, finding
+  mesh intersections, iterative close point algorithm, collision detection, etc.
+  This search procedure has to be distributed for large scale simulations, and
+  be able to work on both accelerators (such as GPU) and host side, without a
+  need to move the application data.
+
+  We developed a portable search capability based on bounding volume
+  hierarchy~(BVH) structure. It is based on MPI/Kokkos, and allows for both
+  spatial and nearest search algorithms.
+\end{block}
+
+%----------------------------------------------------------------------------------------
+% BVH CONSTRUCTION
+%----------------------------------------------------------------------------------------
+\begin{block}{\centering BVH construction}
+
+  Bounding volume hierarchy (BVH) is a tree structure on a set of geometric
+  objects, where each object is associated with a conservative bounding box.
+
+  The construction of a BVH tree is done in several stages:
+  \begin{enumerate}
+    \item User provided geometric objects are wrapped in axis-aligned bounding
+      boxes (AABB).
+    \item
+      For each point, a Morton code is computed.
+
+      \begin{center}
+      \includegraphics[scale=1.5]{figures/an18/fig04-z-curve.png}
+
+        {\small (T.~Karras, NVidia)}
+      \end{center}
+    \item
+      Morton codes are sorted to improve the locality of neighboring objects.
+    \item
+      The binary tree is constructed fully in parallel.
+
+      \begin{center}
+      \includegraphics[scale=1.5]{figures/an18/fig03-bvh.png}
+
+        {\small (T.~Karras, NVidia)}
+      \end{center}
+    \item The bounding boxes of each node are computed.
+  \end{enumerate}
+
+  \
+
+  In distributed setting, there are \textbf{two} trees:
+  \begin{itemize}
+    \item
+      The \textbf{lower tree} is a local BVH tree for on-node data.
+    \item
+      The \textbf{upper tree} is a BVH tree where the geometric objects are the
+      roots of local BVH trees. This tree is replicated among nodes.
+  \end{itemize}
+
+\end{block}
+
+%----------------------------------------------------------------------------------------
+\end{column} % End of the first column
+
+%========================================================================================
+% Empty spacer column
+\begin{column}{.03\textwidth}\end{column}
+
+% The second column
+\begin{column}{.480\textwidth}
+
+%----------------------------------------------------------------------------------------
+% BVH Traversal
+%----------------------------------------------------------------------------------------
+\begin{block}{\centering BVH traversal}
+  Two distinct flavors of search:
+
+  \begin{itemize}
+    \item \textbf{Spatial search}
+
+      Example: find all the neighbors within a specified radius $r$ of the target point.
+      Internal data structure: \textbf{stack}.
+
+    \item \textbf{Nearest search}
+
+      Example: find the predefined $k$ closest neighbors to the target point
+      (kNN).
+      Internal data structure: \textbf{priority queue}.
+
+  \end{itemize}
+
+  All queries are done in parallel. Each thread gets a target for search.
+  Threads traverse the tree independently starting from the root
+  node.
+
+  It is critical to minimize both \textbf{code} and \textbf{data divergence}.
+  This is done through sorting the queries so that local threads correspond to
+  objects that are close to each other.
+
+\end{block}
+
+%----------------------------------------------------------------------------------------
+% KOKKOS
+%----------------------------------------------------------------------------------------
+\begin{block}{\centering Kokkos}
+  What is Kokkos?
+  \begin{itemize}
+    \item Kokkos is a C++11 Library for performance-portable on-node parallelism
+    \item Kokkos users achieve portability by programming to Kokkos
+      abstractions (e.g., parallel algorithm, data layout, memory location,
+      compute resource)
+    \item Kokkos library provides back ends for efficient execution of kernels
+      on multiple architectures (multicore CPU, Intel Xeon Phi, NVIDIA GPU, etc.)
+  \end{itemize}
+\end{block}
+
+%----------------------------------------------------------------------------------------
+% API
+%----------------------------------------------------------------------------------------
+\begin{block}{\centering Proposed API}
+
+\begin{lstlisting}[language=C++]
+MPI_Comm comm;
+using Geometry = DTK::Point;
+Kokkos::View<Geometry*, DeviceType> points;
+// ... setup points ...
+DTK::DistributedSearchTree bvh( comm, points );
+using Query = DTK::Intersects<DTK::Sphere>;
+Kokkos::View<Query*, DeviceType> queries;
+// ... setup queries ...
+auto [offset, indices, ranks] = query( bvh, queries );
+\end{lstlisting}
+
+\end{block}
+
+%----------------------------------------------------------------------------------------
+% RESULTS
+%----------------------------------------------------------------------------------------
+\begin{block}{\centering Results}
+
+
+10M points randomly distributed in a unit cube, 1M queries. The time is in seconds. Speedup in {\bf bold}.
+\begin{table}
+  \centering
+  \begin{tabular}{l@{\hskip 50pt}cr@{\hskip 50pt}cr@{\hskip 50pt}cr}
+    \toprule
+                             & \multicolumn{2}{c}{build}    & \multicolumn{2}{c}{knn search} & \multicolumn{2}{c}{radius search} \\
+    \midrule
+    boost rtree              & 3.40   & {\bf 1.04}   & 7.54       & {\bf 0.57}   & 4.60          & {\bf 0.99} \\
+    dtk bvh (serial)         & 3.52   & {\bf 1.00}   & 4.32       & {\bf 1.00}   & 4.56          & {\bf 1.00} \\
+    dtk bvh (omp 2 threads)  & 2.09   & {\bf 1.68}   & 2.29       & {\bf 1.89}   & 2.45          & {\bf 1.86} \\
+    dtk bvh (omp 4 threads)  & 1.06   & {\bf 3.32}   & 1.13       & {\bf 3.82}   & 1.23          & {\bf 3.71} \\
+    dtk bvh (omp 8 threads)  & 0.59   & {\bf 5.97}   & 0.63       & {\bf 6.86}   & 0.66          & {\bf 6.91} \\
+    dtk bvh (omp 16 threads) & 0.34   & {\bf 10.35}  & 0.36       & {\bf 12.00}  & 0.38          & {\bf 12.00}\\
+    dtk bvh (cuda)           & 0.31   & {\bf 11.35}  & 0.40       & {\bf 10.80}  & 0.31          & {\bf 14.70}\\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\begin{center}
+  \small
+  CPU: Intel Xeon E5-2698 \qquad GPU: NVIDIA Tesla K80
+\end{center}
+
+% Test: fixed number of queries (100k) with varying problem size. DTK was run with 4 OpenMP threads.
+% \begin{table}
+  % \centering
+  % \begin{tabular}{lccccccccc}
+    % \toprule
+    % & \multicolumn{3}{c}{build} & \multicolumn{3}{c}{knn} & \multicolumn{3}{c}{radius} \\
+             % & dtk    & boost  & nanoflann & dtk   & boost & nanoflann & dtk    & boost  & nanoflann \\
+    % \midrule
+    % 1k       & .707ms & .344ms & .338ms    & 1.06s & 1.87s & 2.11s     & 31.8ms & 24.0ms & 19.1ms \\
+    % 10k      & 2.25ms & 3.61ms & 3.70ms    & 1.48s & 2.42s & 2.99s     & 48.1ms & 39.4ms & 32.4ms \\
+    % 100k     & 19.1ms & 41.7m  & 39.5ms    & 1.72s & 2.69s & 3.52s     & 80.8ms & 68.0ms & 62.0ms \\
+    % 1M       & 124.ms & 300.ms & 450.ms    & 2.36s & 3.06s & 4.88s     & .176s  & .163s  & .195s \\
+    % \bottomrule
+  % \end{tabular}
+% \end{table}
+
+\end{block}
+
+%----------------------------------------------------------------------------------------
+% INFORMATION
+%----------------------------------------------------------------------------------------
+\begin{block}{\centering More information}
+  github.com/ORNL-CEES/DataTransferKit
+  devblogs.nvidia.com/thinking-parallel-part-iii-tree-construction-gpu
+\end{block}
+
+%----------------------------------------------------------------------------------------
+% End of the second column
+\end{column}
+
+% Empty spacer column
+\begin{column}{.015\textwidth}\end{column}
+
+% End of all the columns in the poster
+\end{columns}
+%========================================================================================
+
+\vfill
+
+\begin{center}
+\footnotesize
+This research was supported by the Exascale Computing Project (17-SC-20-SC), a
+collaborative effort of the U.S. Department of Energy Office of Science and the
+National Nuclear Security Administration.
+
+Research sponsored by the Laboratory
+Directed Research and Development Program of Oak Ridge National Laboratory,
+managed by UT-Battelle, LLC, for the U.S. Department of Energy.
+\end{center}
+
+
+\begin{center}
+  \includegraphics[height=3.5cm]{logos/ORNL_cut_and_alpha.jpg}\hspace{7ex}
+  \includegraphics[height=4cm]{logos/ECP_transparent.png}\hspace{5ex}
+  \includegraphics[height=3.5cm]{logos/DOE.png}\hspace{7ex}
+\end{center}
+
+% End of the enclosing frame
+\end{frame}
+
+\end{document}
