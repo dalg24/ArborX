@@ -253,11 +253,11 @@
 
 \begin{lstlisting}[language=C++]
 MPI_Comm comm;
-using Geometry = DTK::Point;
+using Geometry = ArborX::Point;
 Kokkos::View<Geometry*, DeviceType> points;
 // ... setup points ...
-DTK::DistributedSearchTree bvh( comm, points );
-using Query = DTK::Intersects<DTK::Sphere>;
+ArborX::DistributedSearchTree bvh( comm, points );
+using Query = ArborX::Intersects<ArborX::Sphere>;
 Kokkos::View<Query*, DeviceType> queries;
 // ... setup queries ...
 auto [offset, indices, ranks] = query( bvh, queries );
