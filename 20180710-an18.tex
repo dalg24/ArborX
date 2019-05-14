@@ -273,22 +273,6 @@ auto [offset, indices, ranks] = query( bvh, queries );
   CPU: Intel Xeon E5-2698 \qquad GPU: NVIDIA Tesla K80
 \end{center}
 
-% Test: fixed number of queries (100k) with varying problem size. DTK was run with 4 OpenMP threads.
-% \begin{table}
-  % \centering
-  % \begin{tabular}{lccccccccc}
-    % \toprule
-    % & \multicolumn{3}{c}{build} & \multicolumn{3}{c}{knn} & \multicolumn{3}{c}{radius} \\
-             % & dtk    & boost  & nanoflann & dtk   & boost & nanoflann & dtk    & boost  & nanoflann \\
-    % \midrule
-    % 1k       & .707ms & .344ms & .338ms    & 1.06s & 1.87s & 2.11s     & 31.8ms & 24.0ms & 19.1ms \\
-    % 10k      & 2.25ms & 3.61ms & 3.70ms    & 1.48s & 2.42s & 2.99s     & 48.1ms & 39.4ms & 32.4ms \\
-    % 100k     & 19.1ms & 41.7m  & 39.5ms    & 1.72s & 2.69s & 3.52s     & 80.8ms & 68.0ms & 62.0ms \\
-    % 1M       & 124.ms & 300.ms & 450.ms    & 2.36s & 3.06s & 4.88s     & .176s  & .163s  & .195s \\
-    % \bottomrule
-  % \end{tabular}
-% \end{table}
-
 \end{block}
 
 %----------------------------------------------------------------------------------------
