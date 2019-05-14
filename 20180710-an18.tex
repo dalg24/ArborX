@@ -132,16 +132,16 @@
 %----------------------------------------------------------------------------------------
 \begin{block}{\centering Motivation}
 
-  Search for close geometric objects is an important algorithm of many
+  Search for close geometric objects in space is an important algorithm of many
   scientific applications.
   Examples include computing interpolation for overlapping meshes, finding
-  mesh intersections, iterative close point algorithm, collision detection, etc.
+  mesh intersections, iterative closest point algorithm, collision detection, particle simulations, etc.
   This search procedure has to be distributed for large scale simulations, and
   be able to work on both accelerators (such as GPU) and host side, without a
   need to move the application data.
 
   We developed a portable search capability based on bounding volume
-  hierarchy~(BVH) structure. It is based on MPI/Kokkos, and allows for both
+  hierarchy~(BVH) structure. It is based on MPI+Kokkos, and allows for both
   spatial and nearest search algorithms.
 \end{block}
 
