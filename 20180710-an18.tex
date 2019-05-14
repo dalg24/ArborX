@@ -151,14 +151,15 @@
 \begin{block}{\centering Tree Construction}
 
   Bounding volume hierarchy (BVH) is a tree structure on a set of geometric
-  objects, where each object is associated with a conservative bounding box.
+  objects.  All objects are wrapped in a conservative bounding volumes
+  that form the leaf nodes of the tree.  These nodes are then grouped based on their
+  being located close to each other and enclosed within larger bounding volumes, and so on.
 
-  The construction of a BVH tree is done in several stages:
+  The construction of the BVH is done in several stages:
   \begin{enumerate}
-    \item User provided geometric objects are wrapped in axis-aligned bounding
-      boxes (AABB).
+    \item User-provided geometric objects are wrapped in axis-aligned bounding boxes and the boundin box of the scene is computed (reduction)
     \item
-      For each point, a Morton code is computed.
+      A Morton code is assigned to each object
 
       \begin{center}
       \includegraphics[scale=1.5]{figures/an18/fig04-z-curve.png}
@@ -166,15 +167,16 @@
         {\small (T.~Karras, NVIDIA)}
       \end{center}
     \item
-      Morton codes are sorted to improve the locality of neighboring objects.
+      Objects are sorted according to their Morton codes
     \item
-      The binary tree is constructed fully in parallel.
+      The binary tree is constructed fully in parallel [Karras2012]
 
       \begin{center}
       \includegraphics[width=.4\textwidth]{figures/ornl19/small.pdf}
       \includegraphics[width=.5\textwidth]{figures/ornl19/small.png}
       \end{center}
-    \item The bounding boxes of each node are computed.
+    \item
+      The bounding boxes are calculated for all internal nodes
   \end{enumerate}
 
   \
