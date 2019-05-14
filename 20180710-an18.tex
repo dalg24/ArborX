@@ -260,24 +260,14 @@ auto [offset, indices, ranks] = query( bvh, queries );
 %----------------------------------------------------------------------------------------
 \begin{block}{\centering Results}
 
+\includegraphics[width=.3\textwidth]{figures/ornl19/comparison_construction_filled_box.png}
+\includegraphics[width=.3\textwidth]{figures/ornl19/comparison_knn_search_filled_box.png}
+\includegraphics[width=.3\textwidth]{figures/ornl19/comparison_radius_search_filled_box.png}
 
-10M points randomly distributed in a unit cube, 1M queries. The time is in seconds. Speedup in {\bf bold}.
-\begin{table}
-  \centering
-  \begin{tabular}{l@{\hskip 50pt}cr@{\hskip 50pt}cr@{\hskip 50pt}cr}
-    \toprule
-                             & \multicolumn{2}{c}{build}    & \multicolumn{2}{c}{knn search} & \multicolumn{2}{c}{radius search} \\
-    \midrule
-    boost rtree              & 3.40   & {\bf 1.04}   & 7.54       & {\bf 0.57}   & 4.60          & {\bf 0.99} \\
-    dtk bvh (serial)         & 3.52   & {\bf 1.00}   & 4.32       & {\bf 1.00}   & 4.56          & {\bf 1.00} \\
-    dtk bvh (omp 2 threads)  & 2.09   & {\bf 1.68}   & 2.29       & {\bf 1.89}   & 2.45          & {\bf 1.86} \\
-    dtk bvh (omp 4 threads)  & 1.06   & {\bf 3.32}   & 1.13       & {\bf 3.82}   & 1.23          & {\bf 3.71} \\
-    dtk bvh (omp 8 threads)  & 0.59   & {\bf 5.97}   & 0.63       & {\bf 6.86}   & 0.66          & {\bf 6.91} \\
-    dtk bvh (omp 16 threads) & 0.34   & {\bf 10.35}  & 0.36       & {\bf 12.00}  & 0.38          & {\bf 12.00}\\
-    dtk bvh (cuda)           & 0.31   & {\bf 11.35}  & 0.40       & {\bf 10.80}  & 0.31          & {\bf 14.70}\\
-    \bottomrule
-  \end{tabular}
-\end{table}
+\includegraphics[width=.3\textwidth]{figures/ornl19/scaling_construction_filled_box.png}
+\includegraphics[width=.3\textwidth]{figures/ornl19/scaling_knn_search_filled_box.png}
+\includegraphics[width=.3\textwidth]{figures/ornl19/scaling_radius_search_filled_box.png}
+
 \begin{center}
   \small
   CPU: Intel Xeon E5-2698 \qquad GPU: NVIDIA Tesla K80
