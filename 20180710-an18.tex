@@ -245,13 +245,13 @@
 
 \begin{lstlisting}[language=C++]
 MPI_Comm comm;
-using Geometry = ArborX::Point;
-Kokkos::View<Geometry*, DeviceType> points;
-// ... setup points ...
+using Primitive = ArborX::Point;
+Kokkos::View<Primitive*, DeviceType> points;
+// ... user-provided collection of points ...
 ArborX::DistributedSearchTree bvh( comm, points );
-using Query = ArborX::Intersects<ArborX::Sphere>;
-Kokkos::View<Query*, DeviceType> queries;
-// ... setup queries ...
+using Predicate = ArborX::Intersects<ArborX::Sphere>;
+Kokkos::View<Predicate*, DeviceType> queries;
+// ... conditions that must be met by predicates ...
 auto [offset, indices, ranks] = query( bvh, queries );
 \end{lstlisting}
 
