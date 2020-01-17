@@ -18,6 +18,8 @@
 #include <ArborX_Exception.hpp>
 #include <ArborX_Predicates.hpp>
 
+#include <Kokkos_TaskScheduler.hpp>
+
 namespace ArborX
 {
 
@@ -39,6 +41,57 @@ public:
   {
     using Tag = typename Predicate::Tag;
     return queryDispatch(Tag{}, bvh, pred, std::forward<Args>(args)...);
+  }
+
+  template <typename Output>
+  struct VisitBoundingVolumeHierarchyNode
+  {
+    using task_type = VisitBoundingVolumeHierarchyNode<Output>;
+    using value_type = int;
+    BoundingVolumeHierarchy<DeviceType> const _bvh;
+    Node const *_node;
+    Output const _output;
+    template <typename TeamMember>
+    KOKKOS_INLINE_FUNCTION void operator()(TeamMember &member,
+                                           value_type &result)
+    {
+      if (_node->isLeaf())
+      {
+        _output(_node->getLeafPermutationIndex());
+        ++result;
+      }
+      else
+      {
+        for (Node const *child :
+             {_node->children.first, _node->children.second})
+        {
+          if (predicate(_bvh.getBoundingVolume(child)))
+          {
+            Kokkos::task_spawn(Kokkos::TaskSingle(member.scheduler()),
+                               task_type{_bvh, child, _output});
+          }
+        }
+      }
+    }
+  };
+  template <typename Predicate, typename Insert>
+  KOKKOS_FUNCTION static int
+  spatialQueryExperimental(BoundingVolumeHierarchy<DeviceType> const &bvh,
+                           Predicate const &predicate, Insert const &insert)
+  {
+    using task_type = VisitBoundingVolumeHierarchyNode<Insert>;
+    using execution_space = typename DeviceType::ExecutionSpace;
+    using scheduler_type = Kokkos::TaskScheduler<execution_space>;
+    using memory_space = typename scheduler_type::memory_space;
+    using memory_pool = typename scheduler_type::memory_pool;
+    size_t const estimate_required_memory = 2 * sizeof(task_type);
+    scheduler_type scheduler(memory_space{}, estimate_required_memory);
+
+    Kokkos::BasicFuture<int, scheduler_type> result = Kokkos::host_spawn(
+        Kokkos::TaskSingle(scheduler), task_type{bvh, bvh.getRoot(), insert});
+    Kokkos::wait(scheduler);
+    assert(!result.is_null() && result.is_ready());
+    return result.get();
   }
 
   // There are two (related) families of search: one using a spatial predicate
