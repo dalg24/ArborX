@@ -43,55 +43,59 @@ public:
     return queryDispatch(Tag{}, bvh, pred, std::forward<Args>(args)...);
   }
 
-  template <typename Output>
+  template <typename Predicate, typename Output>
   struct VisitBoundingVolumeHierarchyNode
   {
-    using task_type = VisitBoundingVolumeHierarchyNode<Output>;
-    using value_type = int;
+    using task_type = VisitBoundingVolumeHierarchyNode<Predicate, Output>;
+    using value_type = void;
     BoundingVolumeHierarchy<DeviceType> const _bvh;
     Node const *_node;
+    Predicate const _predicate;
     Output const _output;
     template <typename TeamMember>
-    KOKKOS_INLINE_FUNCTION void operator()(TeamMember &member,
-                                           value_type &result)
+    KOKKOS_INLINE_FUNCTION void operator()(TeamMember &member)
     {
       if (_node->isLeaf())
       {
         _output(_node->getLeafPermutationIndex());
-        ++result;
       }
       else
       {
         for (Node const *child :
              {_node->children.first, _node->children.second})
         {
-          if (predicate(_bvh.getBoundingVolume(child)))
+          if (_predicate(_bvh.getBoundingVolume(child)))
           {
             Kokkos::task_spawn(Kokkos::TaskSingle(member.scheduler()),
-                               task_type{_bvh, child, _output});
+                               task_type{_bvh, child, _predicate, _output});
           }
         }
       }
     }
   };
+
   template <typename Predicate, typename Insert>
   KOKKOS_FUNCTION static int
   spatialQueryExperimental(BoundingVolumeHierarchy<DeviceType> const &bvh,
                            Predicate const &predicate, Insert const &insert)
   {
-    using task_type = VisitBoundingVolumeHierarchyNode<Insert>;
-    using execution_space = typename DeviceType::ExecutionSpace;
+    using task_type = VisitBoundingVolumeHierarchyNode<Predicate, Insert>;
+    using execution_space = typename DeviceType::execution_space;
     using scheduler_type = Kokkos::TaskScheduler<execution_space>;
     using memory_space = typename scheduler_type::memory_space;
     using memory_pool = typename scheduler_type::memory_pool;
-    size_t const estimate_required_memory = 2 * sizeof(task_type);
-    scheduler_type scheduler(memory_space{}, estimate_required_memory);
 
-    Kokkos::BasicFuture<int, scheduler_type> result = Kokkos::host_spawn(
-        Kokkos::TaskSingle(scheduler), task_type{bvh, bvh.getRoot(), insert});
+    size_t const estimate_required_memory = 8 * sizeof(task_type);
+
+    scheduler_type scheduler{
+        memory_pool{memory_space{}, estimate_required_memory}};
+
+    auto ignore =
+        Kokkos::host_spawn(Kokkos::TaskSingle(scheduler),
+                           task_type{bvh, bvh.getRoot(), predicate, insert});
+    (void)ignore;
     Kokkos::wait(scheduler);
-    assert(!result.is_null() && result.is_ready());
-    return result.get();
+    return 0;
   }
 
   // There are two (related) families of search: one using a spatial predicate
@@ -348,12 +352,12 @@ public:
   {
     auto const geometry = pred._geometry;
     auto const k = pred._k;
-    return nearestQuery(bvh,
-                        [geometry, &bvh](Node const *node) {
-                          return distance(geometry,
-                                          bvh.getBoundingVolume(node));
-                        },
-                        k, insert, buffer);
+    return nearestQuery(
+        bvh,
+        [geometry, &bvh](Node const *node) {
+          return distance(geometry, bvh.getBoundingVolume(node));
+        },
+        k, insert, buffer);
   }
 
   // WARNING Without the buffer argument, the dispatch function uses the
