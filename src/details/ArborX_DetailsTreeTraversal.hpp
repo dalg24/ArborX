@@ -43,21 +43,22 @@ public:
     return queryDispatch(Tag{}, bvh, pred, std::forward<Args>(args)...);
   }
 
-  template <typename Predicate, typename Output>
+  template <typename Predicate, typename OutputFunctor>
   struct VisitBoundingVolumeHierarchyNode
   {
-    using task_type = VisitBoundingVolumeHierarchyNode<Predicate, Output>;
+    using task_type =
+        VisitBoundingVolumeHierarchyNode<Predicate, OutputFunctor>;
     using value_type = void;
     BoundingVolumeHierarchy<DeviceType> const _bvh;
     Node const *_node;
     Predicate const _predicate;
-    Output const _output;
+    OutputFunctor const _output_functor;
     template <typename TeamMember>
     KOKKOS_INLINE_FUNCTION void operator()(TeamMember &member)
     {
       if (_node->isLeaf())
       {
-        _output(_node->getLeafPermutationIndex());
+        _output_functor(_node->getLeafPermutationIndex());
       }
       else
       {
@@ -66,8 +67,9 @@ public:
         {
           if (_predicate(_bvh.getBoundingVolume(child)))
           {
-            Kokkos::task_spawn(Kokkos::TaskSingle(member.scheduler()),
-                               task_type{_bvh, child, _predicate, _output});
+            Kokkos::task_spawn(
+                Kokkos::TaskSingle(member.scheduler()),
+                task_type{_bvh, child, _predicate, _output_functor});
           }
         }
       }
@@ -75,7 +77,7 @@ public:
   };
 
   template <typename Predicate, typename Insert>
-  KOKKOS_FUNCTION static int
+  static void
   spatialQueryExperimental(BoundingVolumeHierarchy<DeviceType> const &bvh,
                            Predicate const &predicate, Insert const &insert)
   {
@@ -95,7 +97,6 @@ public:
                            task_type{bvh, bvh.getRoot(), predicate, insert});
     (void)ignore;
     Kokkos::wait(scheduler);
-    return 0;
   }
 
   // There are two (related) families of search: one using a spatial predicate
