@@ -12,6 +12,7 @@
 #define ARBORX_DETAILS_TREE_TRAVERSAL_HPP
 
 #include <ArborX_DetailsAlgorithms.hpp>
+#include <ArborX_DetailsConcepts.hpp>
 #include <ArborX_DetailsNode.hpp>
 #include <ArborX_DetailsPriorityQueue.hpp>
 #include <ArborX_DetailsStack.hpp>
@@ -41,6 +42,107 @@ public:
   {
     using Tag = typename Predicate::Tag;
     return queryDispatch(Tag{}, bvh, pred, std::forward<Args>(args)...);
+  }
+
+  template <typename Predicates, typename OutputFunctors>
+  struct BatchedVisitBoundingVolumeHierarchyNode
+  {
+    using task_type =
+        BatchedVisitBoundingVolumeHierarchyNode<Predicates, OutputFunctors>;
+    using value_type = void;
+    BoundingVolumeHierarchy<DeviceType> const _bvh;
+    Node const *_node;
+    Predicates const _predicates;
+    OutputFunctors const _output_functors;
+    int const _count;
+    template <typename TeamMember>
+    KOKKOS_INLINE_FUNCTION void operator()(TeamMember &member)
+    {
+      if (_node->isLeaf())
+      {
+        Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(member, 0, _count), [&](int i) {
+              _output_functors[i](_node->getLeafPermutationIndex());
+            });
+      }
+      else
+      {
+        for (Node const *child :
+             {_node->children.first, _node->children.second})
+        {
+          int cnt = 0;
+          Predicates predicates;
+          OutputFunctors output_functors;
+          Kokkos::parallel_scan<int>(
+              Kokkos::TeamThreadRange(member, 0, _count),
+              [&](int i, int &, bool is_final) {
+                if (is_final && _predicates[i](_bvh.getBoundingVolume(child)))
+                {
+                  int const pos = Kokkos::atomic_fetch_add(&cnt, 1);
+                  predicates[pos] = _predicates[i];
+                  output_functors[pos] = _output_functors[i];
+                }
+              });
+          member.team_barrier();
+          if (cnt > 0 && member.team_rank() == 0)
+          {
+            Kokkos::task_spawn(
+                Kokkos::TaskTeam(member.scheduler()),
+                task_type{_bvh, child, predicates, output_functors, cnt});
+          }
+        }
+      }
+    }
+  };
+
+  template <typename Predicates>
+  static void batchedSpatialQueryExperimental(
+      BoundingVolumeHierarchy<DeviceType> const &bvh,
+      Predicates const &predicates)
+  {
+    struct OutputFunctor
+    {
+      int i;
+      KOKKOS_FUNCTION void operator()(int j) const
+      {
+        printf("trouve %d %d\n", i, j);
+      }
+    };
+    constexpr int N = 10;
+    using output_functor_type = Kokkos::Array<OutputFunctor, N>;
+    using Predicate = decay_result_of_get_t<
+        Traits::Access<Predicates, Traits::PredicatesTag>>;
+    using predicate_type = Kokkos::Array<Predicate, N>;
+    using execution_space = typename DeviceType::execution_space;
+    using memory_space = typename DeviceType::memory_space;
+    using task_type =
+        BatchedVisitBoundingVolumeHierarchyNode<predicate_type,
+                                                output_functor_type>;
+    // using execution_space = typename DeviceType::execution_space;
+    using scheduler_type = Kokkos::TaskScheduler<execution_space>;
+    // using memory_space = typename scheduler_type::memory_space;
+    using memory_pool = typename scheduler_type::memory_pool;
+    output_functor_type output_functors;
+    predicate_type preds;
+    // Kokkos::parallel_for(
+    //    Kokkos::RangePolicy<execution_space>(0, N), KOKKOS_LAMBDA(int i) {
+    for (int i = 0; i < N; ++i)
+    {
+      output_functors[i] = OutputFunctor{i};
+      preds[i] = predicates(i);
+    }
+    //    });
+
+    size_t const estimate_required_memory = N * N * 8 * sizeof(task_type);
+
+    scheduler_type scheduler{
+        memory_pool{memory_space{}, estimate_required_memory}};
+
+    auto ignore = Kokkos::host_spawn(
+        Kokkos::TaskSingle(scheduler),
+        task_type{bvh, bvh.getRoot(), preds, output_functors, N});
+    (void)ignore;
+    Kokkos::wait(scheduler);
   }
 
   template <typename Predicate, typename OutputFunctor>
