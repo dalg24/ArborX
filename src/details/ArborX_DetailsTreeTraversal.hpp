@@ -16,6 +16,7 @@
 #include <ArborX_DetailsNode.hpp>
 #include <ArborX_DetailsPriorityQueue.hpp>
 #include <ArborX_DetailsStack.hpp>
+#include <ArborX_DetailsUtils.hpp>
 #include <ArborX_Exception.hpp>
 #include <ArborX_Predicates.hpp>
 
@@ -95,10 +96,7 @@ public:
     }
   };
 
-  template <typename Predicates>
-  static void batchedSpatialQueryExperimental(
-      BoundingVolumeHierarchy<DeviceType> const &bvh,
-      Predicates const &predicates)
+  struct OutputFunctorGenerator
   {
     struct OutputFunctor
     {
@@ -108,7 +106,105 @@ public:
         printf("trouve %d %d\n", i, j);
       }
     };
+    OutputFunctor operator()(int i) const { return OutputFunctor{i}; }
+  };
+
+  struct OutputFunctorGeneratorFirstPass
+  {
+    Kokkos::View<int *, DeviceType> indices;
+    Kokkos::View<int *, DeviceType> offset;
+    int buffer_size;
+    struct OutputFunctor
+    {
+      Kokkos::View<int *, DeviceType> out_;
+      Kokkos::View<int *, DeviceType> count_;
+      int i_;
+      int buffer_size_;
+      KOKKOS_FUNCTION void operator()(int j) const
+      {
+        auto const count = Kokkos::atomic_fetch_add(&count_(i_), 1);
+        if (count < buffer_size_)
+          out_(i_ * buffer_size_ + count) = j;
+      }
+    };
+    auto operator()(int i) const
+    {
+      return OutputFunctor{indices, offset, i, buffer_size};
+    }
+  };
+
+  struct OutputFunctorGeneratorSecondPass
+  {
+    Kokkos::View<int *, DeviceType> indices;
+    Kokkos::View<int *, DeviceType> offset;
+    Kokkos::View<int *, DeviceType> count;
+    struct OutputFunctor
+    {
+      Kokkos::View<int *, DeviceType> out_;
+      Kokkos::View<int *, DeviceType> offset_;
+      Kokkos::View<int *, DeviceType> count_;
+      int i_;
+      KOKKOS_FUNCTION void operator()(int j) const
+      {
+        auto const count = Kokkos::atomic_fetch_add(&count_(i_), 1);
+        out_(offset_(i_) + count) = j;
+      }
+    };
+    auto operator()(int i) const
+    {
+      return OutputFunctor{indices, offset, count, i};
+    }
+  };
+
+  template <typename Predicates>
+  static void batchedSpatialQueryExperimental(
+      BoundingVolumeHierarchy<DeviceType> const &bvh,
+      Predicates const &predicates, Kokkos::View<int *, DeviceType> indices,
+      Kokkos::View<int *, DeviceType> offset, int buffer_size = 0)
+  {
+    // batchedSpatialQueryExperimentalImpl(bvh, predicates,
+    //                                    OutputFunctorGenerator{});
+
+    int const n_queries =
+        Traits::Access<Predicates, Traits::PredicatesTag>::size(predicates);
+    // Kokkos::View<int *, DeviceType> offset(
+    //    Kokkos::view_alloc("offset", Kokkos::WithoutInitializing),
+    //    n_queries + 1);
+    reallocWithoutInitializing(offset, n_queries + 1);
+    deep_copy(offset, 0);
+    // Kokkos::View<int *, DeviceType> indices(
+    //    Kokkos::view_alloc("indices", Kokkos::WithoutInitializing),
+    //    buffer_size * n_queries);
+    reallocWithoutInitializing(indices, buffer_size * n_queries);
+    batchedSpatialQueryExperimentalImpl(
+        bvh, predicates,
+        OutputFunctorGeneratorFirstPass{indices, offset, buffer_size});
+    exclusivePrefixSum(offset);
+    auto const n_results = lastElement(offset);
+    reallocWithoutInitializing(indices, n_results);
+    Kokkos::View<int *, DeviceType> count(
+        Kokkos::view_alloc("count", Kokkos::WithoutInitializing),
+        n_queries + 1);
+    deep_copy(count, 0);
+    batchedSpatialQueryExperimentalImpl(
+        bvh, predicates,
+        OutputFunctorGeneratorSecondPass{indices, offset, count});
+    for (int i = 0; i < n_queries; ++i)
+    {
+      for (int j = offset(i); j < offset(i + 1); ++j)
+      {
+        printf("not working %d %d\n", i, indices(j));
+      }
+    }
+  }
+
+  template <typename Predicates, typename OutputFunctorGenerator>
+  static void batchedSpatialQueryExperimentalImpl(
+      BoundingVolumeHierarchy<DeviceType> const &bvh,
+      Predicates const &predicates, OutputFunctorGenerator const &generator)
+  {
     constexpr int N = 10;
+    using OutputFunctor = decltype(generator(0));
     using output_functor_type = Kokkos::Array<OutputFunctor, N>;
     using Predicate = decay_result_of_get_t<
         Traits::Access<Predicates, Traits::PredicatesTag>>;
@@ -128,7 +224,7 @@ public:
     //    Kokkos::RangePolicy<execution_space>(0, N), KOKKOS_LAMBDA(int i) {
     for (int i = 0; i < N; ++i)
     {
-      output_functors[i] = OutputFunctor{i};
+      output_functors[i] = generator(i);
       preds[i] = predicates(i);
     }
     //    });
