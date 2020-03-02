@@ -96,6 +96,56 @@ public:
     }
   };
 
+  template <typename Predicates, typename OutputFunctors, int N>
+  struct VisitBoundingVolumeHierarchyRoot
+  {
+    using task_type =
+        VisitBoundingVolumeHierarchyRoot<Predicates, OutputFunctors, N>;
+    using OutputFunctor = decltype(std::declval<OutputFunctors>()(0));
+    using output_functor_type = Kokkos::Array<OutputFunctor, N>;
+    using Predicate = decay_result_of_get_t<
+        Traits::Access<Predicates, Traits::PredicatesTag>>;
+    using predicate_type = Kokkos::Array<Predicate, N>;
+    using task_type2 =
+        BatchedVisitBoundingVolumeHierarchyNode<predicate_type,
+                                                output_functor_type>;
+    using value_type = void;
+    BoundingVolumeHierarchy<DeviceType> const _bvh;
+    Predicates const _predicates;
+    OutputFunctors const _output_functors;
+    template <typename TeamMember>
+    KOKKOS_INLINE_FUNCTION void operator()(TeamMember &member)
+    {
+      auto const root = _bvh.getRoot();
+      auto const M = _predicates.extent(0);
+      assert(M == _output_functors.extent(0));
+      predicate_type predicates;
+      output_functor_type output_functors;
+      for (int j = 0; j < M; j += N)
+      {
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(member, 0, N), [&](int i) {
+          predicates[i] = _predicates(j + i);
+          output_functors[i] = _output_functors(j + i);
+        });
+        Kokkos::task_spawn(
+            Kokkos::TaskTeam(member.scheduler()),
+            task_type2{_bvh, root, predicates, output_functors, N});
+      }
+      int const NN = M % N;
+      if (NN > 0)
+      {
+        Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(member, 0, NN), [&](int i) {
+              predicates[i] = _predicates(M - NN + i);
+              output_functors[i] = _output_functors(M - NN + i);
+            });
+        Kokkos::task_spawn(
+            Kokkos::TaskTeam(member.scheduler()),
+            task_type2{_bvh, root, predicates, output_functors, NN});
+      }
+    }
+  };
+
   struct OutputFunctorGenerator
   {
     struct OutputFunctor
@@ -176,7 +226,7 @@ public:
     //    Kokkos::view_alloc("indices", Kokkos::WithoutInitializing),
     //    buffer_size * n_queries);
     reallocWithoutInitializing(indices, buffer_size * n_queries);
-    batchedSpatialQueryExperimentalImpl(
+    batchedSpatialQueryExperimentalImpl2(
         bvh, predicates,
         OutputFunctorGeneratorFirstPass{indices, offset, buffer_size});
     exclusivePrefixSum(offset);
@@ -186,7 +236,7 @@ public:
         Kokkos::view_alloc("count", Kokkos::WithoutInitializing),
         n_queries + 1);
     deep_copy(count, 0);
-    batchedSpatialQueryExperimentalImpl(
+    batchedSpatialQueryExperimentalImpl2(
         bvh, predicates,
         OutputFunctorGeneratorSecondPass{indices, offset, count});
     for (int i = 0; i < n_queries; ++i)
@@ -198,6 +248,31 @@ public:
     }
   }
 
+  template <typename Predicates, typename OutputFunctorGenerator>
+  static void batchedSpatialQueryExperimentalImpl2(
+      BoundingVolumeHierarchy<DeviceType> const &bvh,
+      Predicates const &predicates, OutputFunctorGenerator const &generator)
+  {
+    constexpr int N = 10;
+    using execution_space = typename DeviceType::execution_space;
+    using memory_space = typename DeviceType::memory_space;
+    using task_type =
+        VisitBoundingVolumeHierarchyRoot<Predicates, OutputFunctorGenerator, N>;
+    // using execution_space = typename DeviceType::execution_space;
+    using scheduler_type = Kokkos::TaskScheduler<execution_space>;
+    // using memory_space = typename scheduler_type::memory_space;
+    using memory_pool = typename scheduler_type::memory_pool;
+
+    size_t const estimate_required_memory = 100 * N * N * 8 * sizeof(task_type);
+
+    scheduler_type scheduler{
+        memory_pool{memory_space{}, estimate_required_memory}};
+
+    auto ignore = Kokkos::host_spawn(Kokkos::TaskSingle(scheduler),
+                                     task_type{bvh, predicates, generator});
+    (void)ignore;
+    Kokkos::wait(scheduler);
+  }
   template <typename Predicates, typename OutputFunctorGenerator>
   static void batchedSpatialQueryExperimentalImpl(
       BoundingVolumeHierarchy<DeviceType> const &bvh,
@@ -551,12 +626,12 @@ public:
   {
     auto const geometry = pred._geometry;
     auto const k = pred._k;
-    return nearestQuery(
-        bvh,
-        [geometry, &bvh](Node const *node) {
-          return distance(geometry, bvh.getBoundingVolume(node));
-        },
-        k, insert, buffer);
+    return nearestQuery(bvh,
+                        [geometry, &bvh](Node const *node) {
+                          return distance(geometry,
+                                          bvh.getBoundingVolume(node));
+                        },
+                        k, insert, buffer);
   }
 
   // WARNING Without the buffer argument, the dispatch function uses the
