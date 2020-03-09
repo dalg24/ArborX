@@ -68,11 +68,22 @@ struct Access<Wrapped<View>, PredicatesTag>
   static size_t size(Wrapped<View> const &w) { return w._M_view.extent(0); }
   static KOKKOS_FUNCTION auto get(Wrapped<View> const &w, size_t i)
   {
-    return intersects(w._M_view(i));
+    return attach(intersects(w._M_view(i)), (int)i);
   }
 };
 } // namespace Traits
 } // namespace ArborX
+
+struct Csr2Coo
+{
+  using tag = ArborX::Details::InlineCallbackTag;
+  template <typename Predicate, typename OutputFunctor>
+  KOKKOS_FUNCTION void operator()(Predicate const &pred, int index,
+                                  OutputFunctor const &out) const
+  {
+    out(Kokkos::pair<int, int>{index, getData(pred)});
+  }
+};
 
 void test_parse_boxes()
 {
@@ -116,28 +127,15 @@ void run(std::string const &primitives_filename,
     ArborX::BVH<DeviceType> bvh(primitives);
 
     // perform queries
-    Kokkos::View<int *, DeviceType> indices(
-        Kokkos::view_alloc("indices", Kokkos::WithoutInitializing), 0);
+    Kokkos::View<Kokkos::pair<int, int> *, DeviceType> results(
+        Kokkos::view_alloc("results", Kokkos::WithoutInitializing), 0);
     Kokkos::View<int *, DeviceType> offset(
         Kokkos::view_alloc("offset", Kokkos::WithoutInitializing), 0);
-    bvh.query(predicates, indices, offset);
-
-    // pack results (CSR -> COO format)
-    auto const n_results = indices.extent(0);
-    auto const n_queries = offset.extent(0) - 1;
-    Kokkos::View<Kokkos::pair<int, int> *, DeviceType> results(
-        Kokkos::view_alloc("results", Kokkos::WithoutInitializing), n_results);
-    Kokkos::parallel_for(
-        "zip",
-        Kokkos::RangePolicy<typename DeviceType::execution_space>(0, n_queries),
-        KOKKOS_LAMBDA(int i) {
-          for (int j = offset(i); j < offset(i + 1); ++j)
-          {
-            results(j) = {i, indices(j)};
-          }
-        });
+    bvh.query(predicates, Csr2Coo{}, results, offset);
 
     // copy results back to the host
+    auto const n_results = results.extent(0);
+    auto const n_queries = offset.extent(0) - 1;
     std::vector<std::pair<int, int>> interactions(n_results);
     Kokkos::deep_copy(
         Kokkos::View<Kokkos::pair<int, int> *, Kokkos::HostSpace,
