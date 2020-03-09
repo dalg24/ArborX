@@ -113,7 +113,9 @@ void run(std::string const &primitives_filename,
   std::vector<double> durations;
   durations.reserve(repetitions);
 
-  for (int r = 0; r < repetitions; ++r)
+  int drop = 1;
+
+  for (int r = 0; r < repetitions + drop; ++r)
   {
     timer.reset();
 
@@ -150,6 +152,10 @@ void run(std::string const &primitives_filename,
     std::cout << n_queries << "  (query size)  ";
     std::cout << n_results << " (num interactions)  ";
     std::cout << durations.back() << " seconds\n";
+    if (r < drop)
+    {
+      durations.pop_back();
+    }
   }
 
   double const total =
