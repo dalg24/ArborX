@@ -31,7 +31,7 @@ struct Nearest
 {
   using Tag = Details::NearestPredicateTag;
 
-  KOKKOS_INLINE_FUNCTION
+  KOKKOS_DEFAULTED_FUNCTION
   Nearest() = default;
 
   KOKKOS_INLINE_FUNCTION
