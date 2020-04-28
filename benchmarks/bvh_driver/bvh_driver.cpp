@@ -373,10 +373,6 @@ int main(int argc, char *argv[])
   REGISTER_BENCHMARK(ArborX::BVH<Cuda>);
 #endif
 
-#if defined(KOKKOS_ENABLE_SERIAL)
-  REGISTER_BENCHMARK(BoostRTree);
-#endif
-
   benchmark::RunSpecifiedBenchmarks();
 
   return EXIT_SUCCESS;
