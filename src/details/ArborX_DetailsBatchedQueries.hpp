@@ -65,19 +65,33 @@ public:
                               Predicates const &predicates)
   {
     using Access = Traits::Access<Predicates, Traits::PredicatesTag>;
+    using MemorySpace = typename Access::memory_space;
     auto const n_queries = Access::size(predicates);
+
+    Kokkos::View<Point *, MemorySpace> centroids(
+        Kokkos::ViewAllocateWithoutInitializing("centroids"), n_queries);
+    Kokkos::parallel_for(
+        ARBORX_MARK_REGION("compute_centroids"),
+        Kokkos::RangePolicy<ExecutionSpace>(space, 0, n_queries),
+        KOKKOS_LAMBDA(int i) {
+          centroids(i) =
+              returnCentroid(getGeometry(Access::get(predicates, i)));
+        });
 
     Kokkos::View<unsigned int *, DeviceType> morton_codes(
         Kokkos::ViewAllocateWithoutInitializing("morton"), n_queries);
+    auto centroids_host =
+        Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, centroids);
+    auto morton_codes_host =
+        Kokkos::create_mirror_view(Kokkos::HostSpace{}, morton_codes);
     Kokkos::parallel_for(
         ARBORX_MARK_REGION("assign_morton_codes_to_queries"),
-        Kokkos::RangePolicy<ExecutionSpace>(space, 0, n_queries),
+        Kokkos::RangePolicy<Kokkos::DefaultHostExecutionSpace>(0, n_queries),
         KOKKOS_LAMBDA(int i) {
-          Point xyz =
-              Details::returnCentroid(getGeometry(Access::get(predicates, i)));
-          translateAndScale(xyz, xyz, bounds());
-          morton_codes(i) = morton3D(xyz[0], xyz[1], xyz[2]);
+          morton_codes_host(i) =
+              flecsi_hilbert_proj(bounds(), centroids_host(i));
         });
+    Kokkos::deep_copy(morton_codes, morton_codes_host);
 
     return sortObjects(space, morton_codes);
   }
