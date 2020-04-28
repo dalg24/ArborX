@@ -150,17 +150,23 @@ void BM_knn_search(benchmark::State &state)
 
   TreeType index(
       constructPoints<DeviceType>(n_values, source_point_cloud_type));
-  auto const queries = makeNearestQueries<DeviceType>(
+  auto const queries_tmp = makeNearestQueries<DeviceType>(
       n_values, n_queries, n_neighbors, target_point_cloud_type);
+  auto const permute =
+      ArborX::Details::BatchedQueries<DeviceType>::sortQueriesAlongZOrderCurve(
+          typename DeviceType::execution_space{}, index.bounds(), queries_tmp);
+  auto const queries =
+      ArborX::Details::BatchedQueries<DeviceType>::applyPermutation(
+          typename DeviceType::execution_space{}, permute, queries_tmp);
 
   for (auto _ : state)
   {
     Kokkos::View<int *, DeviceType> offset("offset", 0);
     Kokkos::View<int *, DeviceType> indices("indices", 0);
     auto const start = std::chrono::high_resolution_clock::now();
-    index.query(queries, indices, offset,
-                ArborX::Experimental::TraversalPolicy().setPredicateSorting(
-                    sort_predicates_int));
+    index.query(
+        queries, indices, offset,
+        ArborX::Experimental::TraversalPolicy().setPredicateSorting(false));
     auto const end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
     state.SetIterationTime(elapsed_seconds.count());
@@ -183,8 +189,14 @@ void BM_radius_search(benchmark::State &state)
 
   TreeType index(
       constructPoints<DeviceType>(n_values, source_point_cloud_type));
-  auto const queries = makeSpatialQueries<DeviceType>(
+  auto const queries_tmp = makeSpatialQueries<DeviceType>(
       n_values, n_queries, n_neighbors, target_point_cloud_type);
+  auto const permute =
+      ArborX::Details::BatchedQueries<DeviceType>::sortQueriesAlongZOrderCurve(
+          typename DeviceType::execution_space{}, index.bounds(), queries_tmp);
+  auto const queries =
+      ArborX::Details::BatchedQueries<DeviceType>::applyPermutation(
+          typename DeviceType::execution_space{}, permute, queries_tmp);
 
   for (auto _ : state)
   {
@@ -193,7 +205,7 @@ void BM_radius_search(benchmark::State &state)
     auto const start = std::chrono::high_resolution_clock::now();
     index.query(queries, indices, offset,
                 ArborX::Experimental::TraversalPolicy()
-                    .setPredicateSorting(sort_predicates_int)
+                    .setPredicateSorting(false)
                     .setBufferSize(buffer_size));
     auto const end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
