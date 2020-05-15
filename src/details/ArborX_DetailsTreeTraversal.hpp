@@ -262,9 +262,13 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
                                predicates[i] = Access::get(predicates_, j + i);
                                queryIndices[i] = j + i;
                              });
-        Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
-                           VisitNode_v2<N>{bvh_, bvh_.getRoot(), predicates,
-                                           queryIndices, callback_, NN});
+        member.team_barrier();
+        if (member.team_rank() == 0)
+        {
+          Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
+                             VisitNode_v2<N>{bvh_, bvh_.getRoot(), predicates,
+                                             queryIndices, callback_, NN});
+        }
       }
     }
   };
@@ -277,10 +281,10 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     int const n_queries = Access::size(predicates_);
     if (n_queries == 0)
       return;
-    constexpr int N = 32;
+    constexpr int N = 1;
 
     size_t const estimate_required_memory =
-        n_queries * 10000 * sizeof(VisitNode_v2<N>) + sizeof(VisitRoot_v2<N>);
+        n_queries * 1000 * sizeof(VisitNode_v2<N>) + sizeof(VisitRoot_v2<N>);
 
     scheduler_type scheduler{
         memory_pool{memory_space{}, estimate_required_memory}};
