@@ -186,6 +186,118 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     (void)ignore;
     Kokkos::wait(scheduler);
   }
+
+  static constexpr int N = 32;
+  struct VisitNode_v2
+  {
+    using Predicate = typename Traits::Helper<Access>::type;
+    using value_type = void;
+    BVH bvh_;
+    Node const *node_;
+    Kokkos::Array<Predicate, N> predicates_;
+    Kokkos::Array<int, N> queryIndices_;
+    Callback callback_;
+    int n_active_;
+    template <typename TeamMember>
+    KOKKOS_FUNCTION void operator()(TeamMember &member)
+    {
+      if (node_->isLeaf())
+      {
+        Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(member, 0, n_active_), [&](int i) {
+              callback_(queryIndices_[i], node_->getLeafPermutationIndex());
+            });
+      }
+      else
+      {
+        for (Node const *child : {bvh_.getNodePtr(node_->children.first),
+                                  bvh_.getNodePtr(node_->children.second)})
+        {
+          Kokkos::Array<Predicate, N> predicates;
+          Kokkos::Array<int, N> queryIndices;
+          int n_active = 0;
+          Kokkos::parallel_scan<int>(
+              Kokkos::TeamThreadRange(member, 0, n_active_),
+              [&](int i, int &, bool is_final) {
+                if (is_final && predicates_[i](bvh_.getBoundingVolume(child)))
+                {
+                  int const pos = Kokkos::atomic_fetch_add(&n_active, 1);
+                  predicates[pos] = predicates_[i];
+                  queryIndices[pos] = queryIndices_[i];
+                }
+              });
+          member.team_barrier();
+          if (n_active > 0 && member.team_rank() == 0)
+          {
+            Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
+                               VisitNode_v2{bvh_, child, predicates,
+                                            queryIndices, callback_, n_active});
+          }
+        }
+      }
+    }
+  };
+  struct VisitRoot_v2
+  {
+    using Predicate = typename Traits::Helper<Access>::type;
+    using value_type = void;
+    BVH bvh_;
+    Predicates predicates_;
+    Callback callback_;
+    template <typename TeamMember>
+    KOKKOS_FUNCTION void operator()(TeamMember &member) const
+    {
+      int const n_queries = Access::size(predicates_);
+      Kokkos::Array<Predicate, N> predicates;
+      Kokkos::Array<int, N> queryIndices;
+      for (int j = 0; j < n_queries; j += N)
+      {
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(member, 0, N), [&](int i) {
+          predicates[i] = Access::get(predicates_, j + i);
+          queryIndices[i] = j + i;
+        });
+        Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
+                           VisitNode_v2{bvh_, bvh_.getRoot(), predicates,
+                                        queryIndices, callback_, N});
+      }
+      int const NN = n_queries % N;
+      if (NN > 0)
+      {
+        Kokkos::parallel_for(
+            Kokkos::TeamThreadRange(member, 0, NN), [&](int i) {
+              predicates[i] = Access::get(predicates_, n_queries - NN + i);
+              queryIndices[i] = n_queries - NN + i;
+            });
+        Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
+                           VisitNode_v2{bvh_, bvh_.getRoot(), predicates,
+                                        queryIndices, callback_, NN});
+      }
+    }
+  };
+  template <typename ExecutionSpace>
+  void experimental_v2(ExecutionSpace const &)
+  {
+    using scheduler_type = Kokkos::TaskScheduler<ExecutionSpace>;
+    using memory_space = typename scheduler_type::memory_space;
+    using memory_pool = typename scheduler_type::memory_pool;
+    int const n_queries = Access::size(predicates_);
+    if (n_queries == 0)
+      return;
+
+    size_t const estimate_required_memory =
+        n_queries * 10000 * sizeof(VisitNode_v2) + sizeof(VisitRoot_v2);
+
+    scheduler_type scheduler{
+        memory_pool{memory_space{}, estimate_required_memory}};
+
+    auto const &bvh = bvh_;
+    auto const &predicates = predicates_;
+    auto const &callback = callback_;
+    auto ignore = Kokkos::host_spawn(Kokkos::TaskTeam(scheduler),
+                                     VisitRoot_v2{bvh, predicates, callback});
+    (void)ignore;
+    Kokkos::wait(scheduler);
+  }
 };
 
 // NOTE using tuple as a workaround
