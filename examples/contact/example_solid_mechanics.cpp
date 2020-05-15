@@ -65,7 +65,10 @@ template <typename View>
 struct Access<Wrapped<View>, PredicatesTag>
 {
   using memory_space = typename View::memory_space;
-  static size_t size(Wrapped<View> const &w) { return w._M_view.extent(0); }
+  static KOKKOS_FUNCTION size_t size(Wrapped<View> const &w)
+  {
+    return w._M_view.extent(0);
+  }
   static KOKKOS_FUNCTION auto get(Wrapped<View> const &w, size_t i)
   {
     return intersects(w._M_view(i));

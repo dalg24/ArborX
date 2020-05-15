@@ -47,7 +47,10 @@ struct Access<View, Tag,
     return v(i);
   }
 
-  static typename View::size_type size(View const &v) { return v.extent(0); }
+  static KOKKOS_FUNCTION typename View::size_type size(View const &v)
+  {
+    return v.extent(0);
+  }
 
   using memory_space = typename View::memory_space;
 };
