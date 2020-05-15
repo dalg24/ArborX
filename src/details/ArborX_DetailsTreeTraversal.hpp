@@ -187,7 +187,8 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     Kokkos::wait(scheduler);
   }
 
-  static constexpr int N = 32;
+  // static constexpr int N = 32;
+  template <int N>
   struct VisitNode_v2
   {
     using Predicate = typename Traits::Helper<Access>::type;
@@ -230,13 +231,15 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
           if (n_active > 0 && member.team_rank() == 0)
           {
             Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
-                               VisitNode_v2{bvh_, child, predicates,
-                                            queryIndices, callback_, n_active});
+                               VisitNode_v2<N>{bvh_, child, predicates,
+                                               queryIndices, callback_,
+                                               n_active});
           }
         }
       }
     }
   };
+  template <int N>
   struct VisitRoot_v2
   {
     using Predicate = typename Traits::Helper<Access>::type;
@@ -247,30 +250,21 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     template <typename TeamMember>
     KOKKOS_FUNCTION void operator()(TeamMember &member) const
     {
+      using KokkosExt::min;
       int const n_queries = Access::size(predicates_);
       Kokkos::Array<Predicate, N> predicates;
       Kokkos::Array<int, N> queryIndices;
       for (int j = 0; j < n_queries; j += N)
       {
-        Kokkos::parallel_for(Kokkos::TeamThreadRange(member, 0, N), [&](int i) {
-          predicates[i] = Access::get(predicates_, j + i);
-          queryIndices[i] = j + i;
-        });
+        int const NN = min(N, n_queries - j);
+        Kokkos::parallel_for(Kokkos::TeamThreadRange(member, 0, NN),
+                             [&](int i) {
+                               predicates[i] = Access::get(predicates_, j + i);
+                               queryIndices[i] = j + i;
+                             });
         Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
-                           VisitNode_v2{bvh_, bvh_.getRoot(), predicates,
-                                        queryIndices, callback_, N});
-      }
-      int const NN = n_queries % N;
-      if (NN > 0)
-      {
-        Kokkos::parallel_for(
-            Kokkos::TeamThreadRange(member, 0, NN), [&](int i) {
-              predicates[i] = Access::get(predicates_, n_queries - NN + i);
-              queryIndices[i] = n_queries - NN + i;
-            });
-        Kokkos::task_spawn(Kokkos::TaskTeam(member.scheduler()),
-                           VisitNode_v2{bvh_, bvh_.getRoot(), predicates,
-                                        queryIndices, callback_, NN});
+                           VisitNode_v2<N>{bvh_, bvh_.getRoot(), predicates,
+                                           queryIndices, callback_, NN});
       }
     }
   };
@@ -283,9 +277,10 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     int const n_queries = Access::size(predicates_);
     if (n_queries == 0)
       return;
+    constexpr int N = 32;
 
     size_t const estimate_required_memory =
-        n_queries * 10000 * sizeof(VisitNode_v2) + sizeof(VisitRoot_v2);
+        n_queries * 10000 * sizeof(VisitNode_v2<N>) + sizeof(VisitRoot_v2<N>);
 
     scheduler_type scheduler{
         memory_pool{memory_space{}, estimate_required_memory}};
@@ -293,8 +288,9 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     auto const &bvh = bvh_;
     auto const &predicates = predicates_;
     auto const &callback = callback_;
-    auto ignore = Kokkos::host_spawn(Kokkos::TaskTeam(scheduler),
-                                     VisitRoot_v2{bvh, predicates, callback});
+    auto ignore =
+        Kokkos::host_spawn(Kokkos::TaskTeam(scheduler),
+                           VisitRoot_v2<N>{bvh, predicates, callback});
     (void)ignore;
     Kokkos::wait(scheduler);
   }
