@@ -60,10 +60,7 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     }
     else
     {
-      Kokkos::parallel_for(ARBORX_MARK_REGION("BVH:spatial_queries"),
-                           Kokkos::RangePolicy<ExecutionSpace>(
-                               space, 0, Access::size(predicates)),
-                           *this);
+      experimental_v2(space);
     }
   }
 
