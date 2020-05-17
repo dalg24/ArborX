@@ -199,10 +199,14 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     template <typename TeamMember>
     KOKKOS_FUNCTION void operator()(TeamMember &member)
     {
+      auto const rank = member.team_rank();
+      // printf("Begin visit node %d %d\n", n_active_, rank);
       if (node_->isLeaf())
       {
         Kokkos::parallel_for(
             Kokkos::TeamThreadRange(member, 0, n_active_), [&](int i) {
+              // printf("Found collision %d %d %d\n", rank, i,
+              //       node_->getLeafPermutationIndex());
               callback_(queryIndices_[i], node_->getLeafPermutationIndex());
             });
       }
@@ -219,7 +223,10 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
               [&](int i, int &, bool is_final) {
                 if (is_final && predicates_[i](bvh_.getBoundingVolume(child)))
                 {
-                  int const pos = Kokkos::atomic_fetch_add(&n_active, 1);
+                  // unspecified launch failure when doing atomic increment
+                  // int const pos = Kokkos::atomic_fetch_add(&n_active, 1);
+                  int const pos = n_active++;
+                  // printf("parallel scan %d %d %d\n", pos, n_active_, rank);
                   predicates[pos] = predicates_[i];
                   queryIndices[pos] = queryIndices_[i];
                 }
@@ -278,7 +285,7 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     int const n_queries = Access::size(predicates_);
     if (n_queries == 0)
       return;
-    constexpr int N = 1;
+    constexpr int N = 2;
 
     size_t const estimate_required_memory =
         n_queries * 1000 * sizeof(VisitNode_v2<N>) + sizeof(VisitRoot_v2<N>);
