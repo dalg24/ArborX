@@ -11,8 +11,11 @@
 #ifndef ARBORX_DETAILS_KOKKOS_EXT_HPP
 #define ARBORX_DETAILS_KOKKOS_EXT_HPP
 
+#include <ArborX_CudaOccupancy.hpp>
+
 #include <Kokkos_Core.hpp>
 
+#include <cassert>
 #include <cfloat>  // DBL_MAX, DBL_EPSILON
 #include <cmath>   // isfinite, HUGE_VAL
 #include <cstdint> // uint32_t
@@ -203,6 +206,19 @@ public:
   constexpr operator unsigned() const noexcept { return size_; }
 };
 
+class Occupancy
+{
+  int const percent_;
+
+public:
+  explicit constexpr Occupancy(int percent) noexcept
+      : percent_{percent}
+  {
+    assert(percent >= 0 && percent <= 100);
+  }
+  constexpr operator int() const noexcept { return percent_; }
+};
+
 template <typename FunctorType, typename ExecPolicy>
 class ParallelFor;
 
@@ -212,7 +228,7 @@ inline std::enable_if_t<
                       FunctorType, ExecPolicy>::execution_space,
                   Kokkos::Cuda>{}>
 parallel_for(const std::string &str, const ExecPolicy &policy,
-             const FunctorType &functor, BlockSize, SharedMemSize)
+             const FunctorType &functor, BlockSize, Occupancy)
 {
   Kokkos::parallel_for(str, policy, functor);
 }
@@ -225,7 +241,7 @@ inline std::enable_if_t<
                  Kokkos::Cuda>{}>
 parallel_for(const std::string &str, const ExecPolicy &policy,
              const FunctorType &functor, BlockSize block_size,
-             SharedMemSize shmem)
+             Occupancy desired_occupancy)
 {
 #if defined(KOKKOS_ENABLE_PROFILING)
   uint64_t kpID = 0;
@@ -244,7 +260,7 @@ parallel_for(const std::string &str, const ExecPolicy &policy,
 
   Kokkos::Impl::shared_allocation_tracking_disable();
   ParallelFor<FunctorType, ExecPolicy> closure(functor, policy, block_size,
-                                               shmem);
+                                               desired_occupancy);
   Kokkos::Impl::shared_allocation_tracking_enable();
 
   closure.execute();
@@ -271,7 +287,7 @@ private:
   FunctorType const m_functor;
   Policy const m_policy;
   BlockSize const m_block_size;
-  SharedMemSize const m_shmem;
+  Occupancy const m_occ;
 
   ParallelFor() = delete;
   ParallelFor &operator=(const ParallelFor &) = delete;
@@ -319,17 +335,29 @@ public:
                      Kokkos::Impl::cuda_internal_maximum_grid_count())),
         1, 1);
 
+    cudaDeviceProp const &device_prop = Kokkos::Cuda().cuda_device_prop();
+    cudaFuncAttributes func_attributes;
+    cudaFuncGetAttributes(&func_attributes,
+                          Kokkos::Impl::cuda_parallel_launch_constant_memory<
+                              ParallelFor<FunctorType, Policy>>);
+    size_t const shmem =
+        KokkosExt::Impl::cuda_desired_occupancy_to_dynamic_shmem(
+            device_prop, func_attributes, m_block_size,
+            m_occ * device_prop.maxThreadsPerMultiProcessor / 100);
+
+    printf("occ %d shmem %zu\n",
+           m_occ * device_prop.maxThreadsPerMultiProcessor / 100, shmem);
     Kokkos::Impl::CudaParallelLaunch<ParallelFor, LaunchBounds>(
-        *this, grid, block, m_shmem,
+        *this, grid, block, shmem,
         m_policy.space().impl_internal_space_instance(), false);
   }
 
   ParallelFor(FunctorType const &functor, Policy const &policy,
-              BlockSize block_size, SharedMemSize shmem)
+              BlockSize block_size, Occupancy occ)
       : m_functor(functor)
       , m_policy(policy)
       , m_block_size{block_size}
-      , m_shmem{shmem}
+      , m_occ{occ}
   {
   }
 };
