@@ -1,0 +1,57 @@
+Regions: 
+
+- ArborX::BVH::BVH
+ (REGION)   0.654009 86 0.007605 122.400458 37.247434
+- ArborX::BVH::BVH::sort_morton_codes
+ (REGION)   0.220612 86 0.002565 41.288396 12.564388
+- ArborX::BVH::BVH::calculate_scene_bounding_box
+ (REGION)   0.215008 86 0.002500 40.239579 12.245224
+- ArborX::BVH::BVH::generate_hierarchy
+ (REGION)   0.183999 86 0.002140 34.436216 10.479215
+- ArborX::BVH::BVH::assign_morton_codes
+ (REGION)   0.034002 86 0.000395 6.363535 1.936474
+
+-------------------------------------------------------------------------
+Kernels: 
+
+- ArborX::TreeConstruction::calculate_bounding_box_of_the_scene
+ (ParRed)   0.214803 86 0.002498 40.201250 12.233560
+- ArborX::TreeConstruction::generate_hierarchy
+ (ParFor)   0.153011 86 0.001779 28.636690 8.714373
+- Kokkos::Sort::BinBinning
+ (ParFor)   0.038315 86 0.000446 7.170729 2.182110
+- Kokkos::Sort::BinOffset
+ (ParScan)  0.023906 86 0.000278 4.474059 1.361492
+- ArborX::Sorting::find_min_max_view
+ (ParRed)   0.022980 86 0.000267 4.300796 1.308766
+- Kokkos::Sort::BinSort
+ (ParFor)   0.019017 86 0.000221 3.559061 1.083050
+- Kokkos::ViewFill-1D
+ (ParFor)   0.013206 172 0.000077 2.471647 0.752142
+- Kokkos::Sort::BinCount
+ (ParFor)   0.010596 86 0.000123 1.983136 0.603484
+- Kokkos::Sort::CopyPermute
+ (ParFor)   0.009979 86 0.000116 1.867612 0.568329
+- ArborX::TreeConstruction::assign_morton_codes
+ (ParFor)   0.008621 86 0.000100 1.613451 0.490986
+- Kokkos::Sort::Copy
+ (ParFor)   0.006723 86 0.000078 1.258312 0.382914
+- Kokkos::View::initialization [Kokkos::SortImpl::BinSortFunctor::bin_count]
+ (ParFor)   0.006054 86 0.000070 1.133017 0.344786
+- Kokkos::View::initialization [random_points_mirror]
+ (ParFor)   0.005901 3 0.001967 1.104414 0.336082
+- Kokkos::View::destruction [random_points_mirror]
+ (ParFor)   0.001118 3 0.000373 0.209273 0.063683
+- Kokkos::View::destruction []
+ (ParFor)   0.000088 89 0.000001 0.016554 0.005038
+
+-------------------------------------------------------------------------
+Summary:
+
+Total Execution Time (incl. Kokkos + non-Kokkos):                   1.75585 seconds
+Total Time in Kokkos kernels:                                       0.53432 seconds
+   -> Time outside Kokkos kernels:                                  1.22153 seconds
+   -> Percentage in Kokkos kernels:                                   30.43 %
+Total Calls to Kokkos Kernels:                                         1213
+
+-------------------------------------------------------------------------
