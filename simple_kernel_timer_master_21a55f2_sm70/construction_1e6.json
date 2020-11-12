@@ -1,0 +1,83 @@
+kokkos-kernel-data : {
+    "mpi-rank"               : 0,
+    "total-app-time"         :      1.482,
+    "total-kernel-times"     :      0.237,
+    "total-non-kernel-times" :      1.244,
+    "percent-in-kernels"     :  16.02,
+    "unique-kernel-calls"    :                      8,
+
+    "kernel-perf-info"       : [
+       {
+           "kernel-name"    : "ArborX::Algorithms::iota",
+           "region"         : "",
+           "call-count"     : 254,
+           "total-time"     : 0.009963,
+           "time-per-call"  :       0.00003923,
+           "kernel-type"    : "PARALLEL-FOR",
+       },
+       {
+           "kernel-name"    : "ArborX::Algorithms::iota",
+           "region"         : "",
+           "call-count"     : 254,
+           "total-time"     : 0.009963,
+           "time-per-call"  :       0.00003923,
+           "kernel-type"    : "PARALLEL-FOR",
+       },
+       {
+           "kernel-name"    : "ArborX::TreeConstruction::assign_morton_codes",
+           "region"         : "",
+           "call-count"     : 254,
+           "total-time"     : 0.011348,
+           "time-per-call"  :       0.00004468,
+           "kernel-type"    : "PARALLEL-FOR",
+       },
+       {
+           "kernel-name"    : "ArborX::TreeConstruction::calculate_bounding_box_of_the_scene",
+           "region"         : "",
+           "call-count"     : 254,
+           "total-time"     : 0.023462,
+           "time-per-call"  :       0.00009237,
+           "kernel-type"    : "PARALLEL-REDUCE",
+       },
+       {
+           "kernel-name"    : "ArborX::TreeConstruction::generate_hierarchy",
+           "region"         : "",
+           "call-count"     : 254,
+           "total-time"     : 0.177104,
+           "time-per-call"  :       0.00069726,
+           "kernel-type"    : "PARALLEL-FOR",
+       },
+       {
+           "kernel-name"    : "Kokkos::View::destruction []",
+           "region"         : "",
+           "call-count"     : 258,
+           "total-time"     : 0.001090,
+           "time-per-call"  :       0.00000422,
+           "kernel-type"    : "PARALLEL-FOR",
+       },
+       {
+           "kernel-name"    : "Kokkos::View::destruction [random_points_mirror]",
+           "region"         : "",
+           "call-count"     : 4,
+           "total-time"     : 0.000008,
+           "time-per-call"  :       0.00000197,
+           "kernel-type"    : "PARALLEL-FOR",
+       },
+       {
+           "kernel-name"    : "Kokkos::View::initialization [random_points_mirror]",
+           "region"         : "",
+           "call-count"     : 4,
+           "total-time"     : 0.004374,
+           "time-per-call"  :       0.00109351,
+           "kernel-type"    : "PARALLEL-FOR",
+       },
+       {
+           "kernel-name"    : "Kokkos::ViewFill-1D",
+           "region"         : "",
+           "call-count"     : 254,
+           "total-time"     : 0.010015,
+           "time-per-call"  :       0.00003943,
+           "kernel-type"    : "PARALLEL-FOR",
+       }
+    ]
+}
