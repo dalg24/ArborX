@@ -100,41 +100,58 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
 
     Node const *stack[64];
     Node const **stack_ptr = stack;
-    *stack_ptr++ = nullptr;
-    Node const *node = _bvh.getRoot();
+    *stack_ptr++ = nullptr;            // push sentinel value
+    Node const *node = _bvh.getRoot(); // start with root
     do
     {
-      Node const *child_left = _bvh.getNodePtr(node->left_child);
-      Node const *child_right = _bvh.getNodePtr(node->right_child);
+      int left_child_index = node->left_child;
+      int right_child_index = node->right_child;
 
-      bool overlap_left = predicate(_bvh.getBoundingVolume(child_left));
-      bool overlap_right = predicate(_bvh.getBoundingVolume(child_right));
+      Node const *left_child_node = _bvh.getNodePtr(left_child_index);
+      Node const *right_child_node = _bvh.getNodePtr(right_child_index);
 
-      if (overlap_left && child_left->isLeaf())
+      bool left_child_is_leaf = left_child_node->isLeaf();
+      bool right_child_is_leaf = right_child_node->isLeaf();
+
+      bool prune_left =
+          (left_child_is_leaf && pruneLeaf(queryIndex, left_child_index)) ||
+          (!left_child_is_leaf &&
+           pruneLeftSubtree(queryIndex, left_child_index));
+      bool prune_right =
+          (right_child_is_leaf && pruneLeaf(queryIndex, right_child_index));
+
+      bool overlap_left =
+          !prune_left && predicate(_bvh.getBoundingVolume(left_child_node));
+      bool overlap_right =
+          !prune_right && predicate(_bvh.getBoundingVolume(right_child_node));
+
+      if (overlap_left && left_child_is_leaf)
       {
         if (invoke_callback_and_check_early_exit(
-                _callback, predicate, child_left->getLeafPermutationIndex()))
+                _callback, predicate,
+                left_child_node->getLeafPermutationIndex()))
           return;
       }
-      if (overlap_right && child_right->isLeaf())
+      if (overlap_right && right_child_is_leaf)
       {
         if (invoke_callback_and_check_early_exit(
-                _callback, predicate, child_right->getLeafPermutationIndex()))
+                _callback, predicate,
+                right_child_node->getLeafPermutationIndex()))
           return;
       }
 
-      bool traverse_left = (overlap_left && !child_left->isLeaf());
-      bool traverse_right = (overlap_right && !child_right->isLeaf());
+      bool traverse_left = (overlap_left && !left_child_is_leaf);
+      bool traverse_right = (overlap_right && !right_child_is_leaf);
 
       if (!traverse_left && !traverse_right)
       {
-        node = *--stack_ptr;
+        node = *--stack_ptr; // pop
       }
       else
       {
-        node = traverse_left ? child_left : child_right;
+        node = traverse_left ? left_child_node : right_child_node;
         if (traverse_left && traverse_right)
-          *stack_ptr++ = child_right;
+          *stack_ptr++ = right_child_node; // push
       }
     } while (node != nullptr);
   }
