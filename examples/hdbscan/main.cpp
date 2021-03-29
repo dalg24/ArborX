@@ -46,6 +46,7 @@ int main(int argc, char* argv[])
     std::ofstream outFile(outFileName);
     pB.writeMST(outFile);
 
+    pB.print();
     // perform hdbscan
 
     // return output

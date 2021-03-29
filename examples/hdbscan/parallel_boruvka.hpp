@@ -49,9 +49,9 @@ public:
     void updateMST();
     double distSqEuclidean(int v1, int v2);
 
-    void writeMST(std::ofstream& ofileName);
-    std::vector<wtEdge_t> weightedMST();
-    
+  void writeMST(std::ofstream& ofileName);
+  void print(std::ostream &os = std::cout) const;
+  std::vector<wtEdge_t> weightedMST();
 };
 
 

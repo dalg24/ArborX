@@ -1,5 +1,7 @@
 #include <iostream>
 #include "parallel_boruvka.hpp"
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/graphviz.hpp>
 
 parallelBoruvka_t::parallelBoruvka_t(const std::vector<std::vector<double> > &points) : m_points(points)
 {
@@ -211,11 +213,29 @@ void parallelBoruvka_t::writeMST(std::ofstream &outfile)
 
 std::vector<wtEdge_t> parallelBoruvka_t::weightedMST()
 {
-    std::vector<wtEdge_t> wtmst; 
+    std::vector<wtEdge_t> wtmst;
     for (auto edge : m_MST)
     {
         wtEdge_t wte(edge, distSqEuclidean(edge.first, edge.second));
         wtmst.push_back(wte);
     }
-    return wtmst; 
+    return wtmst;
+}
+
+void parallelBoruvka_t::print(std::ostream &os) const
+{
+  auto const &edges = m_MST;
+  auto const &weights = m_componentEdgeLen;
+  auto const num_nodes = m_npts;
+
+  using Graph = boost::adjacency_list<
+      /*OutEdgeList=*/boost::vecS, /*VertexList=*/boost::vecS,
+      /*Directed=*/boost::undirectedS,
+      /*VertexProperties=*/boost::no_property,
+      /*EdgeProperties=*/boost::property<boost::edge_weight_t, std::decay_t<decltype(weights)>::value_type>>;
+  Graph g(edges.begin(), edges.end(), weights.begin(), num_nodes);
+  boost::dynamic_properties dp;
+  dp.property("weight", get(boost::edge_weight, g));
+  boost::write_graphviz(std::cout, g, boost::default_writer(),
+                        boost::dynamic_properties_writer(dp));
 }
