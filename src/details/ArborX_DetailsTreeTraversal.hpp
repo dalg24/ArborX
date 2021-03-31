@@ -192,49 +192,54 @@ struct TreeTraversal<BVH, Predicates, Callback, NearestPredicateTag>
   using Access = AccessTraits<Predicates, PredicatesTag>;
   using Node = HappyTreeFriends::node_t<BVH>;
 
-  using Buffer = Kokkos::View<Kokkos::pair<int, float> *, MemorySpace>;
-  using Offset = Kokkos::View<int *, MemorySpace>;
-  struct BufferProvider
+  struct Buffer
   {
-    Buffer _buffer;
-    Offset _offset;
+    using Values = Kokkos::View<Kokkos::pair<int, float> *, MemorySpace>;
+    using Offsets = Kokkos::View<int *, MemorySpace>;
+
+    Values _values;
+    Offsets _offsets;
 
     KOKKOS_FUNCTION auto operator()(int i) const
     {
-      auto const *_offsetptr = &_offset(i);
-      return Kokkos::subview(_buffer,
-                             Kokkos::make_pair(*_offsetptr, *(_offsetptr + 1)));
+      auto const first = _offsets(i);
+      auto const last = _offsets(i + 1);
+      return Kokkos::subview(_values, Kokkos::make_pair(first, last));
     }
   };
 
-  BufferProvider _buffer;
+  Buffer _buffer;
 
   template <typename ExecutionSpace>
   void allocateBuffer(ExecutionSpace const &space)
   {
     auto const n_queries = Access::size(_predicates);
 
-    Offset offset(Kokkos::ViewAllocateWithoutInitializing(
-                      "ArborX::TreeTraversal::nearest::offset"),
-                  n_queries + 1);
+    typename Buffer::Offsets offsets(
+        Kokkos::ViewAllocateWithoutInitializing(
+            "ArborX::TreeTraversal::nearest::buffer::offsets"),
+        n_queries + 1);
     // NOTE workaround to avoid implicit capture of *this
     auto const &predicates = _predicates;
     Kokkos::parallel_for(
         "ArborX::TreeTraversal::nearest::"
         "scan_queries_for_numbers_of_neighbors",
         Kokkos::RangePolicy<ExecutionSpace>(space, 0, n_queries),
-        KOKKOS_LAMBDA(int i) { offset(i) = getK(Access::get(predicates, i)); });
-    exclusivePrefixSum(space, offset);
-    int const _buffersize = lastElement(offset);
-    // Allocate buffer over which to perform heap operations in
+        KOKKOS_LAMBDA(int i) {
+          offsets(i) = getK(Access::get(predicates, i));
+        });
+    exclusivePrefixSum(space, offsets);
+    int const buffer_size = lastElement(offsets);
+    // Allocate buffers over which to perform heap operations in
     // TreeTraversal::nearestQuery() to store nearest leaf nodes found so far.
     // It is not possible to anticipate how much memory to allocate since the
     // number of nearest neighbors k is only known at runtime.
 
-    Buffer buffer(Kokkos::ViewAllocateWithoutInitializing(
-                      "ArborX::TreeTraversal::nearest::buffer"),
-                  _buffersize);
-    _buffer = BufferProvider{buffer, offset};
+    typename Buffer::Values values(
+        Kokkos::ViewAllocateWithoutInitializing(
+            "ArborX::TreeTraversal::nearest::buffer::values"),
+        buffer_size);
+    _buffer = Buffer{values, offsets};
   }
 
   template <typename ExecutionSpace>
