@@ -7,7 +7,7 @@
 #include <iostream>
 
 template <class Graph>
-void compute_minimum_spaning_tree_and_print(Graph g,
+void compute_minimum_spanning_tree_and_print(Graph g,
                                             std::ostream &os = std::cout)
 {
   typename boost::property_map<Graph, boost::edge_weight_t>::type weight =
@@ -77,7 +77,7 @@ int main()
   std::size_t num_edges = sizeof(edge_array) / sizeof(E);
   Graph g(edge_array, edge_array + num_edges, weights, num_nodes);
 
-  compute_minimum_spaning_tree_and_print(g);
+  compute_minimum_spanning_tree_and_print(g);
 
   return EXIT_SUCCESS;
 }

@@ -54,7 +54,7 @@ struct CustomPostCallback
     using ArborX::Details::distance;
     auto const n = offset.extent(0) - 1;
     ArborX::reallocWithoutInitializing(out, in.extent(0));
-    // NOTE woraround to avoid implicit capture of *this
+    // NOTE workaround to avoid implicit capture of *this
     auto const &points_ = points;
     auto const &origin_ = origin;
     Kokkos::parallel_for(
