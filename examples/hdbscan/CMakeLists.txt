@@ -21,7 +21,7 @@ set_target_properties(ArborX_BoostGraph.exe PROPERTIES
   CXX_EXTENSIONS OFF
 )
 
-add_executable(ArborX_ExperimentalTreesTraversal.exe experimental_tree_traversal.cpp)
-target_link_libraries(ArborX_ExperimentalTreesTraversal.exe PRIVATE ArborX::ArborX)
-add_test(NAME ArborX_ExperimentalTreesTraversal_Example COMMAND ./ArborX_ExperimentalTreesTraversal.exe  ${CMAKE_CURRENT_SOURCE_DIR}/notebooks/twoD-20.pts)
-#set_tests_properties(ArborX_ExperimentalTreesTraversal_Example PROPERTIES ENVIRONMENT KOKKOS_PROFILE_LIBRARY=/Users/qdi/Projects/kokkos-tools/debugging/kernel-logger/kp_kernel_logger.so)
+add_executable(ArborX_ExperimentalTreeTraversal.exe experimental_tree_traversal.cpp)
+target_link_libraries(ArborX_ExperimentalTreeTraversal.exe PRIVATE ArborX::ArborX)
+add_test(NAME ArborX_ExperimentalTreeTraversal_Example COMMAND ./ArborX_ExperimentalTreeTraversal.exe  ${CMAKE_CURRENT_SOURCE_DIR}/notebooks/twoD-20.pts)
+#set_tests_properties(ArborX_ExperimentalTreeTraversal_Example PROPERTIES ENVIRONMENT KOKKOS_PROFILE_LIBRARY=/Users/qdi/Projects/kokkos-tools/debugging/kernel-logger/kp_kernel_logger.so)

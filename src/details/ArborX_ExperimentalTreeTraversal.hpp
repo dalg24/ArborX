@@ -25,6 +25,67 @@ namespace ArborX
 namespace Experimental
 {
 
+template <class ExecutionSpace, class Parents, class Labels>
+void reduce_labels(ExecutionSpace const &space, Parents const &parents,
+                   Labels const &labels, int n)
+{
+  ARBORX_ASSERT((int)labels.size() == 2 * n - 1);
+  ARBORX_ASSERT((int)parents.size() == 2 * n - 1);
+  constexpr typename Labels::value_type undetermined = -1;
+  constexpr typename Labels::value_type untouched = -2;
+  Kokkos::parallel_for(
+      "ArborX::Experimental::reset_parent_labels",
+      Kokkos::RangePolicy<ExecutionSpace>(space, 0, n - 1),
+      KOKKOS_LAMBDA(int i) { labels(i) = untouched; });
+  Kokkos::parallel_for(
+      "ArborX::Experimental::reduce_labels",
+      Kokkos::RangePolicy<ExecutionSpace>(space, n - 1, 2 * n - 1),
+      KOKKOS_LAMBDA(int i)
+      {
+        assert(labels(i) != undetermined);
+        constexpr typename Labels::value_type root = 0;
+        while (true)
+        {
+          int const lbl = labels(i);
+          int const par = parents(i);
+          int const par_lbl =
+              Kokkos::atomic_compare_exchange(&labels(par), untouched, lbl);
+          // Terminate first thread and let second one continue.
+          // This ensures that every node gets processed only once, and not
+          // before both of its children are processed.
+          if (par_lbl == untouched)
+            break;
+          // Do not reduce further and reset to undetermined if children labels
+          // do not match
+          if (par_lbl != lbl)
+          {
+            labels(par) = undetermined;
+          }
+          if (par == root)
+            break;
+          i = par;
+        }
+      });
+};
+
+template <class ExecutionSpace, class BVH, class Parents>
+void find_parents(ExecutionSpace const &space, BVH const &bvh,
+                  Parents const &parents)
+{
+  Kokkos::parallel_for(
+      "ArborX::Experimental::tag_children",
+      Kokkos::RangePolicy<ExecutionSpace>(space, 0, bvh.size() - 1),
+      KOKKOS_LAMBDA(int i)
+      {
+        int const left_child_index =
+            Details::HappyTreeFriends::getLeftChild(bvh, i);
+        int const right_child_index =
+            Details::HappyTreeFriends::getRightChild(bvh, i);
+        parents(left_child_index) = i;
+        parents(right_child_index) = i;
+      });
+}
+
 template <class BVH, class Predicates, class Callback, class = void>
 struct TreeTraversal
 {
@@ -140,8 +201,9 @@ struct TreeTraversal
   KOKKOS_FUNCTION void operator()(int query_index) const
   {
     auto const &predicate = Access::get(_predicates, query_index);
-    auto const distance = [geometry = getGeometry(predicate),
-                           bvh = _bvh](Node const *node) {
+    auto const distance =
+        [geometry = getGeometry(predicate), bvh = _bvh](Node const *node)
+    {
       using Details::distance;
       return distance(geometry,
                       Details::HappyTreeFriends::getBoundingVolume(bvh, node));

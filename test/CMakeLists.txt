@@ -132,7 +132,7 @@ target_compile_definitions(ArborX_DetailsCrsGraphWrapperImpl.exe PRIVATE BOOST_T
 target_include_directories(ArborX_DetailsCrsGraphWrapperImpl.exe PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 add_test(NAME ArborX_DetailsCrsGraphWrapperImpl_Test COMMAND ./ArborX_DetailsCrsGraphWrapperImpl.exe)
 
-add_executable(ArborX_Clustering.exe tstDBSCAN.cpp utf_main.cpp)
+add_executable(ArborX_Clustering.exe tstDBSCAN.cpp tstNoName.cpp utf_main.cpp)
 target_link_libraries(ArborX_Clustering.exe PRIVATE ArborX Boost::unit_test_framework)
 target_compile_definitions(ArborX_Clustering.exe PRIVATE BOOST_TEST_DYN_LINK)
 target_include_directories(ArborX_Clustering.exe PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_SOURCE_DIR}/examples/dbscan)

@@ -12,7 +12,10 @@
 #ifndef ARBORX_DETAILS_HAPPY_TREE_FRIENDS_HPP
 #define ARBORX_DETAILS_HAPPY_TREE_FRIENDS_HPP
 
+#include <ArborX_DetailsNode.hpp>
+
 #include <Kokkos_Macros.hpp>
+#include <Kokkos_Pair.hpp>
 
 #include <type_traits>
 #include <utility> // declval
@@ -53,6 +56,29 @@ struct HappyTreeFriends
   static decltype(auto) getLeafNodes(BVH const &bvh)
   {
     return bvh.getLeafNodes();
+  }
+
+  template <class BVH>
+  static KOKKOS_FUNCTION int getLeftChild(BVH const &bvh, int i)
+  {
+    return bvh.getNodePtr(i)->left_child;
+  }
+
+  template <class BVH, std::enable_if_t<std::is_same<
+                           typename node_t<BVH>::Tag,
+                           Details::NodeWithTwoChildrenTag>::value> * = nullptr>
+  static KOKKOS_FUNCTION int getRightChild(BVH const &bvh, int i)
+  {
+    return bvh.getNodePtr(i)->right_child;
+  }
+
+  template <class BVH,
+            std::enable_if_t<std::is_same<
+                typename node_t<BVH>::Tag,
+                Details::NodeWithLeftChildAndRopeTag>::value> * = nullptr>
+  static KOKKOS_FUNCTION int getRightChild(BVH const &bvh, int i)
+  {
+    return bvh.getNodePtr(bvh.getNodePtr(i)->left_child)->rope;
   }
 };
 } // namespace Details
