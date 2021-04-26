@@ -86,12 +86,11 @@ void find_parents(ExecutionSpace const &space, BVH const &bvh,
       });
 }
 
-template <class BVH, class Predicates, class Callback, class = void>
+template <class BVH, class Predicates>
 struct TreeTraversal
 {
   BVH _bvh;
   Predicates _predicates;
-  Callback _callback;
 
   using Access = AccessTraits<Predicates, PredicatesTag>;
 
@@ -99,103 +98,24 @@ struct TreeTraversal
   using MemorySpace = typename BVH::memory_space;
   /*static constexpr*/ int undetermined = -1;
   Kokkos::View<int *, MemorySpace> _labels;
-  Kokkos::View<int *, MemorySpace> _parents;
   Kokkos::View<int *, MemorySpace> _neighbors;
 
   template <class ExecutionSpace>
   TreeTraversal(ExecutionSpace const space, BVH const &bvh,
-                Predicates const &predicates)
+                Predicates const &predicates,
+                Kokkos::View<int *, MemorySpace> labels,
+                Kokkos::View<int *, MemorySpace> neighbors)
       : _bvh(bvh)
       , _predicates(predicates)
-      , _labels(Kokkos::view_alloc(Kokkos::WithoutInitializing, "labels"),
-                2 * _bvh.size() - 1)
-      , _parents(Kokkos::view_alloc(Kokkos::WithoutInitializing, "parents)"),
-                 2 * _bvh.size() - 1)
-      , _neighbors(
-            Kokkos::view_alloc(Kokkos::WithoutInitializing, "neighbors)"),
-            _bvh.size())
+      , _labels(labels)
+      , _neighbors(neighbors)
   {
+    ARBORX_ASSERT(labels.size() == 2 * _bvh.size() - 1);
+    ARBORX_ASSERT(neighbors.size() == _bvh.size());
     ARBORX_ASSERT(Access::size(predicates) == _bvh.size());
-    // reset internal nodes label before each reduction
-    Kokkos::deep_copy(
-        space,
-        Kokkos::subview(_labels, Kokkos::make_pair(0, (int)_bvh.size() - 1)),
-        undetermined);
-    // initialize leaf nodes labels
-    iota(space,
-         Kokkos::subview(
-             _labels, Kokkos::make_pair(_bvh.size() - 1, 2 * _bvh.size() - 1)));
-    Kokkos::parallel_for("ArborX::Experimental::TreeTraversal",
-                         Kokkos::RangePolicy<ExecutionSpace>(space, 0, 1),
-                         *this);
-    Kokkos::parallel_for("ArborX::Experimental::TreeTraversal::ComputeParents",
-                         Kokkos::RangePolicy<ExecutionSpace, ComputeParents>(
-                             space, 0, _bvh.size() - 1),
-                         *this);
-    Kokkos::parallel_for("ArborX::Experimental::TreeTraversal::ReduceLabels",
-                         Kokkos::RangePolicy<ExecutionSpace, ReduceLabels>(
-                             space, _bvh.size() - 1, 2 * _bvh.size() - 1),
-                         *this);
-  }
-
-  template <typename Tag = typename Node::Tag>
-  KOKKOS_FUNCTION
-      std::enable_if_t<std::is_same<Tag, Details::NodeWithTwoChildrenTag>{},
-                       int>
-      getRightChild(Node const *node) const
-  {
-    assert(!node->isLeaf());
-    return node->right_child;
-  }
-
-  template <typename Tag = typename Node::Tag>
-  KOKKOS_FUNCTION std::enable_if_t<
-      std::is_same<Tag, Details::NodeWithLeftChildAndRopeTag>{}, int>
-  getRightChild(Node const *node) const
-  {
-    assert(!node->isLeaf());
-    return Details::HappyTreeFriends::getNodePtr(_bvh, node->left_child)->rope;
-  }
-
-  struct ComputeParents
-  {
-  };
-  KOKKOS_FUNCTION void operator()(ComputeParents, int i) const
-  {
-    Node const *node = Details::HappyTreeFriends::getNodePtr(_bvh, i);
-    int left_child_index = node->left_child;
-    int right_child_index = getRightChild(node);
-    _parents(left_child_index) = i;
-    _parents(right_child_index) = i;
-  }
-  struct ReduceLabels
-  {
-  };
-  KOKKOS_FUNCTION void operator()(ReduceLabels, int i) const
-  {
-    int const root = 0;
-    while (true)
-    {
-      int const lbl = _labels(i);
-      int const par = _parents(i);
-      int const par_lbl =
-          Kokkos::atomic_compare_exchange(&_labels(par), undetermined, lbl);
-      // Terminate first thread and let second one continue.
-      // This ensures that every node gets processed only once, and not
-      // before both of its children are processed.
-      if (par_lbl == undetermined)
-        break;
-      // Do not reduce further and reset to undetermined if children labels do
-      // not match
-      if (par_lbl != lbl)
-      {
-        _labels(par) = undetermined;
-        break;
-      }
-      if (par == root)
-        break;
-      i = par;
-    }
+    Kokkos::parallel_for(
+        "ArborX::Experimental::TreeTraversal",
+        Kokkos::RangePolicy<ExecutionSpace>(space, 0, _bvh.size()), *this);
   }
 
   KOKKOS_FUNCTION void operator()(int query_index) const
@@ -233,11 +153,14 @@ struct TreeTraversal
             Details::HappyTreeFriends::getNodePtr(_bvh, node_index);
         if (node->isLeaf())
         {
+         assert(false);
         }
         else
         {
-          int const left_child_index = node->left_child;
-          int const right_child_index = getRightChild(node);
+          int const left_child_index =
+              Details::HappyTreeFriends::getLeftChild(_bvh, node_index);
+          int const right_child_index =
+              Details::HappyTreeFriends::getRightChild(_bvh, node_index);
           Node const *left_child_node =
               Details::HappyTreeFriends::getNodePtr(_bvh, left_child_index);
           Node const *right_child_node =
@@ -284,11 +207,13 @@ struct TreeTraversal
   }
 };
 
-template <class ExecutionSpace, class BVH, class Predicates, class Callback>
+template <class ExecutionSpace, class BVH, class Predicates, class Labels,
+          class Neighbors>
 void traverse(ExecutionSpace const &space, BVH const bvh,
-              Predicates const &predicates, Callback const &callback)
+              Predicates const &predicates, Labels const &labels,
+              Neighbors const &neighbors)
 {
-  TreeTraversal<BVH, Predicates, Callback>(space, bvh, predicates);
+  TreeTraversal<BVH, Predicates>(space, bvh, predicates, labels, neighbors);
 }
 
 } // namespace Experimental

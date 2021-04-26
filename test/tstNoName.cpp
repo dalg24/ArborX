@@ -10,7 +10,8 @@
  ****************************************************************************/
 #include "ArborX_EnableDeviceTypes.hpp" // ARBORX_DEVICE_TYPES
 #include "ArborX_EnableViewComparison.hpp"
-#include "ArborX_ExperimentalTreeTraversal.hpp"
+#include <ArborX_ExperimentalTreeTraversal.hpp>
+#include <ArborX_LinearBVH.hpp>
 
 #include "BoostTest_CUDA_clang_workarounds.hpp"
 #include <boost/test/unit_test.hpp>
@@ -44,7 +45,7 @@ auto reduce_labels(ExecutionSpace const &space,
   BOOST_TEST(Test::reduce_labels(space, parents, labels) == ref,               \
              boost::test_tools::per_element())
 
-BOOST_AUTO_TEST_SUITE(Foo)
+BOOST_AUTO_TEST_SUITE(NoName)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(reduce_labels, DeviceType, ARBORX_DEVICE_TYPES)
 {
@@ -84,6 +85,42 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(reduce_labels, DeviceType, ARBORX_DEVICE_TYPES)
       space, parents,
       (std::vector<int>{0, 1, 2, 3, 4, 5, 6, 0, 0, 0, 3, 4, 4, 4, 7}),
       (std::vector<int>{-1, 0, -1, -1, -1, -1, 4, 0, 0, 0, 3, 4, 4, 4, 7}));
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(nearest_neighbor, DeviceType, ARBORX_DEVICE_TYPES)
+{
+  using ArborX::Point;
+  auto points = toView<DeviceType>(
+      std::vector<ArborX::Point>{{0, 0, 0}, {1, 1, 1}, {2, 2, 2}, {3, 3, 3}},
+      "Test::points");
+  auto labels =
+      toView<DeviceType>(std::vector<int>{0, 1, 2, 0, 0, 0, 1}, "Test::labels");
+
+  auto predicates = toView<DeviceType>(
+      std::vector<decltype(ArborX::nearest(ArborX::Point{}))>{
+          ArborX::nearest(ArborX::Point{0, 0, 0}),
+          ArborX::nearest(ArborX::Point{1, 1, 1}),
+          ArborX::nearest(ArborX::Point{2, 2, 2}),
+          ArborX::nearest(ArborX::Point{3, 3, 3})},
+      "Test::predicates");
+
+  using ExecutionSpace = typename DeviceType::execution_space;
+  using MemorySpace = typename DeviceType::memory_space;
+  ExecutionSpace space;
+
+  ArborX::BVH<MemorySpace> bvh(space, points);
+
+  int const n = bvh.size();
+  Kokkos::View<int *, MemorySpace> parents(
+      Kokkos::view_alloc(Kokkos::WithoutInitializing, "Test::parents"),
+      2 * n - 1);
+  ArborX::Experimental::find_parents(space, bvh, parents);
+  ArborX::Experimental::reduce_labels(space, parents, labels, n);
+  Kokkos::View<int *, MemorySpace> neighbors(
+      Kokkos::view_alloc(Kokkos::WithoutInitializing, "Test::neighbors"), n);
+  ArborX::Experimental::traverse(space, bvh, predicates, labels, neighbors);
+  BOOST_TEST(neighbors == (std::vector<int>{3, 3, 3, 2}),
+             boost::test_tools::per_element());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
