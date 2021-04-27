@@ -92,6 +92,12 @@ struct HappyTreeFriends
   {
     return bvh.getBoundingVolume(bvh.getNodePtr(i));
   }
+
+  template <class BVH>
+  static KOKKOS_FUNCTION bool isLeaf(BVH const &bvh, int i)
+  {
+    return i >= (int)bvh.size() - 1;
+  }
 };
 } // namespace Details
 } // namespace ArborX

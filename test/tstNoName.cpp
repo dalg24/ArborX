@@ -36,7 +36,7 @@ auto reduce_labels(ExecutionSpace const &space,
   using ArborX::Experimental::reduce_labels;
   auto labels = toView<ExecutionSpace>(labels_host, "Test::labels");
   auto parents = toView<ExecutionSpace>(parents_host, "Test::parents");
-  reduce_labels(space, parents, labels, (parents.size() + 1) / 2);
+  reduce_labels(space, parents, labels);
   return Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, labels);
 }
 } // namespace Test
@@ -65,10 +65,10 @@ auto nearest_neighbor_with_mask(ExecutionSpace const &space,
   ArborX::Experimental::init_labels(space, bvh,
                                     toView<MemorySpace>(labels_host), labels);
   ArborX::Experimental::find_parents(space, bvh, parents);
-  ArborX::Experimental::reduce_labels(space, parents, labels, n);
+  ArborX::Experimental::reduce_labels(space, parents, labels);
   Kokkos::View<int *, MemorySpace> neighbors(
       Kokkos::view_alloc(Kokkos::WithoutInitializing, "Test::neighbors"), n);
-  ArborX::Experimental::traverse(space, bvh, labels, neighbors);
+  ArborX::Experimental::find_nearest_neighbors(space, bvh, labels, neighbors);
   return neighbors;
 }
 } // namespace Test
