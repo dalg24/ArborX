@@ -24,6 +24,68 @@ namespace ArborX
 {
 namespace Experimental
 {
+template <class BVH>
+struct NearestK
+{
+  BVH _bvh;
+  int _k;
+};
+
+template <class BVH, class Permute, class Distances>
+struct MaxDistance
+{
+  BVH _bvh;
+  Permute _permute;
+  Distances _distances;
+  template <class Predicate>
+  KOKKOS_FUNCTION void operator()(Predicate const &predicate, int i) const
+  {
+    using Details::distance;
+    using Details::HappyTreeFriends;
+    using KokkosExt::max;
+    int const ii = _permute(i);
+    int const jj = getData(predicate);
+    auto const &bounding_volume_i =
+        HappyTreeFriends::getBoundingVolume(_bvh, ii);
+    auto const &bounding_volume_j =
+        HappyTreeFriends::getBoundingVolume(_bvh, jj);
+    // FIXME using knowledge that one query processed by a single thread
+    // must be atomic otherwise.
+    int const leaf_nodes_shift = _bvh.size() - 1;
+    int const j = jj - leaf_nodes_shift;
+    _distances(j) =
+        max(_distances(j), distance(bounding_volume_i, bounding_volume_j));
+  }
+};
+} // namespace Experimental
+} // namespace ArborX
+
+template <class BVH>
+struct ArborX::AccessTraits<ArborX::Experimental::NearestK<BVH>,
+                            ArborX::PredicatesTag>
+{
+  using size_type = typename BVH::size_type;
+  using memory_space = typename BVH::memory_space;
+  using Self = ArborX::Experimental::NearestK<BVH>;
+  static KOKKOS_FUNCTION size_type size(Self const &self)
+  {
+    return self._bvh.size();
+  }
+  static KOKKOS_FUNCTION auto get(Self const &self, size_type i)
+  {
+    using Details::HappyTreeFriends;
+    int const leaf_nodes_shift = size(self) - 1;
+    int const ii = i + leaf_nodes_shift;
+    return attach(
+        nearest(HappyTreeFriends::getBoundingVolume(self._bvh, ii), self._k),
+        (int)ii);
+  }
+};
+
+namespace ArborX
+{
+namespace Experimental
+{
 
 template <class ExecutionSpace, class Parents, class Labels>
 void reduce_labels(ExecutionSpace const &space, Parents const &parents,
@@ -56,8 +118,8 @@ void reduce_labels(ExecutionSpace const &space, Parents const &parents,
           // before both of its children are processed.
           if (par_lbl == untouched)
             break;
-          // Do not reduce further and reset to undetermined if children labels
-          // do not match
+          // Do not reduce further and reset to undetermined if children
+          // labels do not match
           if (par_lbl != lbl)
           {
             labels(par) = undetermined;
@@ -127,7 +189,7 @@ void find_nearest_neighbors(ExecutionSpace const &space, BVH const bvh,
           return distance(geometry,
                           Details::HappyTreeFriends::getBoundingVolume(bvh, j));
         };
-        auto const predicate = [label = labels(i), &bvh, labels](int j)
+        auto const predicate = [label = labels(i), labels](int j)
         { return labels(j) != label; };
         auto radius = infinity;
         int nearest = undetermined;
@@ -200,6 +262,42 @@ void find_nearest_neighbors(ExecutionSpace const &space, BVH const bvh,
             HappyTreeFriends::getLeafPermutationIndex(bvh, i);
         neighbors(permutation_index) = nearest;
       });
+}
+
+template <class ExecutionSpace, class BVH, class Permute>
+void reverse_permutation(ExecutionSpace const &space, BVH const &bvh,
+                         Permute const &permute)
+{
+  Kokkos::parallel_for(
+      "ArborX::Experimental::reverse_leaf_permutation",
+      Kokkos::RangePolicy<ExecutionSpace>(space, bvh.size() - 1,
+                                          2 * bvh.size() - 1),
+      KOKKOS_LAMBDA(int i)
+      {
+        using Details::HappyTreeFriends;
+        auto const leaf_permutation_index =
+            HappyTreeFriends::getLeafPermutationIndex(bvh, i);
+        permute(leaf_permutation_index) = i;
+      });
+}
+
+template <class ExecutionSpace, class BVH, class Distances>
+void find_kth_neighbors(ExecutionSpace const &space, BVH const &bvh, int k,
+                        Distances const &distances)
+{
+  Kokkos::deep_copy(distances, -1);
+
+  using MemorySpace = typename BVH::memory_space;
+  Kokkos::View<int *, MemorySpace> permute(
+      Kokkos::view_alloc(Kokkos::WithoutInitializing,
+                         "ArborX::Experimental::permute"),
+      bvh.size());
+  reverse_permutation(space, bvh, permute);
+
+  // NOTE using k+1 to account for self-collision
+  bvh.query(
+      space, NearestK<BVH>{bvh, k + 1},
+      MaxDistance<BVH, decltype(permute), Distances>{bvh, permute, distances});
 }
 
 } // namespace Experimental

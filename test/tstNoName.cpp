@@ -69,12 +69,34 @@ auto nearest_neighbor_with_mask(ExecutionSpace const &space,
   Kokkos::View<int *, MemorySpace> neighbors(
       Kokkos::view_alloc(Kokkos::WithoutInitializing, "Test::neighbors"), n);
   ArborX::Experimental::find_nearest_neighbors(space, bvh, labels, neighbors);
-  return neighbors;
+  return Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, neighbors);
 }
 } // namespace Test
 
 #define ARBORX_TEST_NEAREST_NEIGHBOR_WITH_MASK(space, points, labels, ref)     \
   BOOST_TEST(Test::nearest_neighbor_with_mask(space, points, labels) == ref,   \
+             boost::test_tools::per_element())
+
+namespace Test
+{
+template <class ExecutionSpace>
+auto distance_to_kth_neighbor(ExecutionSpace const &space,
+                              std::vector<ArborX::Point> const &points_host,
+                              int k)
+{
+  using MemorySpace = typename ExecutionSpace::memory_space;
+  ArborX::BVH<MemorySpace> bvh(
+      space, toView<MemorySpace>(points_host, "Test::points"));
+  int const n = bvh.size();
+  Kokkos::View<float *, MemorySpace> distances(
+      Kokkos::view_alloc(Kokkos::WithoutInitializing, "Test::distances"), n);
+  ArborX::Experimental::find_kth_neighbors(space, bvh, k, distances);
+  return Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, distances);
+}
+} // namespace Test
+
+#define ARBORX_TEST_DISTANCE_TO_KTH_NEIGHBOR(space, points, k, ref)            \
+  BOOST_TEST(Test::distance_to_kth_neighbor(space, points, k) == ref,          \
              boost::test_tools::per_element())
 
 BOOST_AUTO_TEST_SUITE(NoName)
@@ -119,9 +141,11 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(reduce_labels, DeviceType, ARBORX_DEVICE_TYPES)
       (std::vector<int>{-1, 0, -1, -1, -1, -1, 4, 0, 0, 0, 3, 4, 4, 4, 7}));
 }
 
-BOOST_AUTO_TEST_CASE_TEMPLATE(nearest_neighbor, DeviceType, ARBORX_DEVICE_TYPES)
+BOOST_AUTO_TEST_CASE_TEMPLATE(nearest_neighbor_with_mask, DeviceType,
+                              ARBORX_DEVICE_TYPES)
 {
-  std::vector<ArborX::Point> points{{0, 0, 0}, {1, 1, 1}, {2, 2, 2}, {3, 3, 3}};
+  std::vector<ArborX::Point> const points{
+      {0, 0, 0}, {1, 1, 1}, {2, 2, 2}, {3, 3, 3}};
   using ExecutionSpace = typename DeviceType::execution_space;
   ExecutionSpace space;
   ARBORX_TEST_NEAREST_NEIGHBOR_WITH_MASK(space, points,
@@ -135,6 +159,27 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(nearest_neighbor, DeviceType, ARBORX_DEVICE_TYPES)
   ARBORX_TEST_NEAREST_NEIGHBOR_WITH_MASK(space, points,
                                          (std::vector<int>{0, 1, 1, 1}),
                                          (std::vector<int>{1, 0, 0, 0}));
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(distance_to_kth_nearest_neighbor, DeviceType,
+                              ARBORX_DEVICE_TYPES)
+{
+  std::vector<ArborX::Point> const points{
+      {0, 0, 0}, {1, 0, 0}, {3, 0, 0}, {6, 0, 0}, {10, 0, 0}};
+  using ExecutionSpace = typename DeviceType::execution_space;
+  ExecutionSpace space;
+
+  ARBORX_TEST_DISTANCE_TO_KTH_NEIGHBOR(space, points, 1,
+                                       (std::vector<float>{1, 1, 2, 3, 4}));
+
+  ARBORX_TEST_DISTANCE_TO_KTH_NEIGHBOR(space, points, 2,
+                                       (std::vector<float>{3, 2, 3, 4, 7}));
+
+  ARBORX_TEST_DISTANCE_TO_KTH_NEIGHBOR(space, points, 3,
+                                       (std::vector<float>{6, 5, 3, 5, 9}));
+
+  ARBORX_TEST_DISTANCE_TO_KTH_NEIGHBOR(space, points, 4,
+                                       (std::vector<float>{10, 9, 7, 6, 10}));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
