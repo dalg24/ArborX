@@ -66,7 +66,7 @@ void reduce_labels(ExecutionSpace const &space, Parents const &parents,
           i = par;
         }
       });
-};
+}
 
 template <class ExecutionSpace, class BVH, class Parents>
 void find_parents(ExecutionSpace const &space, BVH const &bvh,
@@ -86,13 +86,28 @@ void find_parents(ExecutionSpace const &space, BVH const &bvh,
       });
 }
 
-template <class BVH, class Predicates>
+template <class ExecutionSpace, class BVH, class LabelsIn, class LabelsOut>
+void init_labels(ExecutionSpace const &space, BVH const &bvh,
+                 LabelsIn const &in, LabelsOut const &out)
+{
+  ARBORX_ASSERT(in.size() == bvh.size());
+  ARBORX_ASSERT(out.size() == 2 * bvh.size() - 1);
+  Kokkos::parallel_for(
+      "ArborX::Experimental::init_labels",
+      Kokkos::RangePolicy<ExecutionSpace>(space, bvh.size() - 1,
+                                          2 * bvh.size() - 1),
+      KOKKOS_LAMBDA(int i)
+      {
+        int const leaf_permutation_index =
+            Details::HappyTreeFriends::getLeafPermutationIndex(bvh, i);
+        out(i) = in(leaf_permutation_index);
+      });
+}
+
+template <class BVH>
 struct TreeTraversal
 {
   BVH _bvh;
-  Predicates _predicates;
-
-  using Access = AccessTraits<Predicates, PredicatesTag>;
 
   using Node = Details::HappyTreeFriends::node_t<BVH>;
   using MemorySpace = typename BVH::memory_space;
@@ -102,27 +117,28 @@ struct TreeTraversal
 
   template <class ExecutionSpace>
   TreeTraversal(ExecutionSpace const space, BVH const &bvh,
-                Predicates const &predicates,
                 Kokkos::View<int *, MemorySpace> labels,
                 Kokkos::View<int *, MemorySpace> neighbors)
       : _bvh(bvh)
-      , _predicates(predicates)
       , _labels(labels)
       , _neighbors(neighbors)
   {
     ARBORX_ASSERT(labels.size() == 2 * _bvh.size() - 1);
     ARBORX_ASSERT(neighbors.size() == _bvh.size());
-    ARBORX_ASSERT(Access::size(predicates) == _bvh.size());
     Kokkos::parallel_for(
         "ArborX::Experimental::TreeTraversal",
-        Kokkos::RangePolicy<ExecutionSpace>(space, 0, _bvh.size()), *this);
+        Kokkos::RangePolicy<ExecutionSpace>(space, 0, _bvh.size()),
+        // space, _bvh.size() - 1, 2 * _bvh.size() - 1),
+        *this);
   }
 
   KOKKOS_FUNCTION void operator()(int query_index) const
   {
-    auto const &predicate = Access::get(_predicates, query_index);
+    int const leaf_nodes_shift = _bvh.size() - 1;
     auto const distance =
-        [geometry = getGeometry(predicate), bvh = _bvh](Node const *node)
+        [geometry = Details::HappyTreeFriends::getBoundingVolume(
+             _bvh, query_index + leaf_nodes_shift),
+         bvh = _bvh](Node const *node)
     {
       using Details::distance;
       return distance(geometry,
@@ -130,7 +146,6 @@ struct TreeTraversal
     };
     auto radius = KokkosExt::ArithmeticTraits::infinity<float>::value;
     int index = undetermined;
-    int const leaf_nodes_shift = _bvh.size() - 1;
     auto const query_label = _labels(query_index + leaf_nodes_shift);
 
     using PairIndexDistance = Kokkos::pair<int, float>;
@@ -151,69 +166,63 @@ struct TreeTraversal
       {
         Node const *node =
             Details::HappyTreeFriends::getNodePtr(_bvh, node_index);
-        if (node->isLeaf())
+        assert(!node->isLeaf());
+        int const left_child_index =
+            Details::HappyTreeFriends::getLeftChild(_bvh, node_index);
+        int const right_child_index =
+            Details::HappyTreeFriends::getRightChild(_bvh, node_index);
+        Node const *left_child_node =
+            Details::HappyTreeFriends::getNodePtr(_bvh, left_child_index);
+        Node const *right_child_node =
+            Details::HappyTreeFriends::getNodePtr(_bvh, right_child_index);
+        float const left_child_distance = distance(left_child_node);
+        float const right_child_distance = distance(right_child_node);
+        bool const left_child_node_is_leaf = left_child_node->isLeaf();
+        bool const right_child_node_is_leaf = right_child_node->isLeaf();
+        auto const left_child_label = _labels(left_child_index);
+        auto const right_child_label = _labels(right_child_index);
+        if (left_child_label != query_label && left_child_distance < radius)
         {
-         assert(false);
-        }
-        else
-        {
-          int const left_child_index =
-              Details::HappyTreeFriends::getLeftChild(_bvh, node_index);
-          int const right_child_index =
-              Details::HappyTreeFriends::getRightChild(_bvh, node_index);
-          Node const *left_child_node =
-              Details::HappyTreeFriends::getNodePtr(_bvh, left_child_index);
-          Node const *right_child_node =
-              Details::HappyTreeFriends::getNodePtr(_bvh, right_child_index);
-          float const left_child_distance = distance(left_child_node);
-          float const right_child_distance = distance(right_child_node);
-          bool const left_child_node_is_leaf = left_child_node->isLeaf();
-          bool const right_child_node_is_leaf = right_child_node->isLeaf();
-          auto const left_child_label = _labels(
-              left_child_node_is_leaf ? left_child_index + leaf_nodes_shift
-                                      : left_child_index);
-          auto const right_child_label = _labels(
-              right_child_node_is_leaf ? right_child_index + leaf_nodes_shift
-                                       : right_child_index);
-          if (left_child_label != query_label && left_child_distance < radius)
+          if (left_child_node_is_leaf)
           {
-            if (left_child_node_is_leaf)
-            {
-              index = left_child_index;
-              radius = left_child_distance;
-            }
-            else
-            {
-              stack.emplace(left_child_index, left_child_distance);
-            }
+            index = left_child_index;
+            index = Details::HappyTreeFriends::getLeafPermutationIndex(
+                _bvh, left_child_index);
+            radius = left_child_distance;
           }
-          if (right_child_label != query_label && right_child_distance < radius)
+          else
           {
-            if (right_child_node_is_leaf)
-            {
-              index = right_child_index;
-              radius = right_child_distance;
-            }
-            else
-            {
-              stack.emplace(right_child_index, right_child_distance);
-            }
+            stack.emplace(left_child_index, left_child_distance);
+          }
+        }
+        if (right_child_label != query_label && right_child_distance < radius)
+        {
+          if (right_child_node_is_leaf)
+          {
+            index = right_child_index;
+            index = Details::HappyTreeFriends::getLeafPermutationIndex(
+                _bvh, right_child_index);
+            radius = right_child_distance;
+          }
+          else
+          {
+            stack.emplace(right_child_index, right_child_distance);
           }
         }
       }
     }
     KOKKOS_ASSERT(index != undetermined);
+    query_index = Details::HappyTreeFriends::getLeafPermutationIndex(
+        _bvh, query_index + leaf_nodes_shift);
     _neighbors(query_index) = index;
   }
 };
 
-template <class ExecutionSpace, class BVH, class Predicates, class Labels,
-          class Neighbors>
-void traverse(ExecutionSpace const &space, BVH const bvh,
-              Predicates const &predicates, Labels const &labels,
+template <class ExecutionSpace, class BVH, class Labels, class Neighbors>
+void traverse(ExecutionSpace const &space, BVH const bvh, Labels const &labels,
               Neighbors const &neighbors)
 {
-  TreeTraversal<BVH, Predicates>(space, bvh, predicates, labels, neighbors);
+  TreeTraversal<BVH>(space, bvh, labels, neighbors);
 }
 
 } // namespace Experimental

@@ -80,6 +80,18 @@ struct HappyTreeFriends
   {
     return bvh.getNodePtr(bvh.getNodePtr(i)->left_child)->rope;
   }
+
+  template <class BVH>
+  static KOKKOS_FUNCTION int getLeafPermutationIndex(BVH const &bvh, int i)
+  {
+    return bvh.getNodePtr(i)->getLeafPermutationIndex();
+  }
+
+  template <class BVH>
+  static KOKKOS_FUNCTION decltype(auto) getBoundingVolume(BVH const &bvh, int i)
+  {
+    return bvh.getBoundingVolume(bvh.getNodePtr(i));
+  }
 };
 } // namespace Details
 } // namespace ArborX
