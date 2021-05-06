@@ -51,6 +51,7 @@ struct MaxDistance
         HappyTreeFriends::getBoundingVolume(_bvh, jj);
     // FIXME using knowledge that one query processed by a single thread
     // must be atomic otherwise.
+    // FIXME might want distance entries in permuted order
     int const leaf_nodes_shift = _bvh.size() - 1;
     int const j = jj - leaf_nodes_shift;
     _distances(j) =
@@ -298,6 +299,65 @@ void find_kth_neighbors(ExecutionSpace const &space, BVH const &bvh, int k,
   bvh.query(
       space, NearestK<BVH>{bvh, k + 1},
       MaxDistance<BVH, decltype(permute), Distances>{bvh, permute, distances});
+}
+
+template <class ExecutionSpace, class Labels>
+void merge_labels(ExecutionSpace const &space, Labels const &labels)
+{
+  int const n = labels.size();
+  Kokkos::parallel_for(
+      "ArborX::Experimental::merge_labels",
+      Kokkos::RangePolicy<ExecutionSpace>(space, 0, n),
+      KOKKOS_LAMBDA(int i)
+      {
+        int label_i = labels(i);
+        if (i != label_i)
+        {
+          int ii;
+          do
+          {
+            ii = label_i;
+            label_i = labels(ii);
+          } while (ii != label_i);
+          labels(i) = ii;
+        }
+      });
+}
+
+template <class ExecutionSpace, class Labels, class Components>
+void find_components(ExecutionSpace const &space, Labels const &labels,
+                     Components const &components)
+{
+  using MemorySpace = typename ExecutionSpace::memory_space;
+  int const n = components.size();
+  ARBORX_ASSERT((int)labels.size() == 2 * n - 1);
+
+  Kokkos::View<int *, MemorySpace> offsets(
+      "ArborX::Experimental::clusters_offsets", n + 1);
+  Kokkos::parallel_for(
+      "ArborX::ExecutionSpace::compute_cluster_sizes",
+      Kokkos::RangePolicy<ExecutionSpace>(space, 0, n),
+      KOKKOS_LAMBDA(int i) { Kokkos::atomic_increment(offsets(&labels(i))); });
+  exclusivePrefixSum(space, offsets);
+  Kokkos::View<int *, MemorySpace> indices(
+      "ArborX::Experimental::clusters_indices", lastElement(offsets));
+
+  Kokkos::parallel_scan("ArborX::Experimental::find_components",
+                        Kokkos::RangePolicy<ExecutionSpace>(space, 0, n),
+                        KOKKOS_LAMBDA(int i, int &update, bool final_pass){
+
+                        });
+}
+
+template <class ExecutionSpace, class BVH>
+void build_minimum_spanning_tree(ExecutionSpace const &space, BVH const &bvh)
+{
+  using MemorySpace = typename BVH::memory_space;
+  int const n = bvh.size();
+  Kokkos::View<int *, MemorySpace> components(
+      Kokkos::view_alloc(Kokkos::WithoutInitializing,
+                         "ArborX::Experimental::components"),
+      n);
 }
 
 } // namespace Experimental

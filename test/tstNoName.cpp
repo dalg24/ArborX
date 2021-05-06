@@ -99,6 +99,23 @@ auto distance_to_kth_neighbor(ExecutionSpace const &space,
   BOOST_TEST(Test::distance_to_kth_neighbor(space, points, k) == ref,          \
              boost::test_tools::per_element())
 
+namespace Test
+{
+template <class ExecutionSpace>
+auto merge_labels(ExecutionSpace const &space,
+                  std::vector<int> const &labels_host)
+{
+  using ArborX::Experimental::reduce_labels;
+  auto labels = toView<ExecutionSpace>(labels_host, "Test::labels");
+  ArborX::Experimental::merge_labels(space, labels);
+  return Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, labels);
+}
+} // namespace Test
+
+#define ARBORX_TEST_MERGE_LABELS(space, labels, ref)                           \
+  BOOST_TEST(Test::merge_labels(space, labels) == ref,                         \
+             boost::test_tools::per_element())
+
 BOOST_AUTO_TEST_SUITE(NoName)
 
 BOOST_AUTO_TEST_CASE_TEMPLATE(reduce_labels, DeviceType, ARBORX_DEVICE_TYPES)
@@ -180,6 +197,23 @@ BOOST_AUTO_TEST_CASE_TEMPLATE(distance_to_kth_nearest_neighbor, DeviceType,
 
   ARBORX_TEST_DISTANCE_TO_KTH_NEIGHBOR(space, points, 4,
                                        (std::vector<float>{10, 9, 7, 6, 10}));
+}
+
+BOOST_AUTO_TEST_CASE_TEMPLATE(merge_labels, DeviceType, ARBORX_DEVICE_TYPES)
+{
+  using ExecutionSpace = typename DeviceType::execution_space;
+  ExecutionSpace space;
+  ARBORX_TEST_MERGE_LABELS(space, (std::vector<int>{0, 1, 2, 3, 4}),
+                           (std::vector<int>{0, 1, 2, 3, 4}));
+
+  ARBORX_TEST_MERGE_LABELS(space, (std::vector<int>{0, 0, 0, 0, 0}),
+                           (std::vector<int>{0, 0, 0, 0, 0}));
+
+  ARBORX_TEST_MERGE_LABELS(space, (std::vector<int>{0, 1, 0, 1, 2}),
+                           (std::vector<int>{0, 1, 0, 1, 0}));
+
+  ARBORX_TEST_MERGE_LABELS(space, (std::vector<int>{0, 1, 0, 1, 3}),
+                           (std::vector<int>{0, 1, 0, 1, 1}));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
