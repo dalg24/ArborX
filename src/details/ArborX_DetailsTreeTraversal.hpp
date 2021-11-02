@@ -109,10 +109,10 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
 
       if (predicate(HappyTreeFriends::getBoundingVolume(_bvh, left_child)))
       {
-        if (HappyTreeFriends::isLeaf(_bvh, left_child))
+        if (HappyTreeFriends::isLeaf(_bvh, left_child) &&
+            !pruneLeaf(queryIndex, left_child))
         {
-          if (!pruneLeaf(queryIndex, left_child) &&
-              invoke_callback_and_check_early_exit(
+          if (invoke_callback_and_check_early_exit(
                   _callback, predicate,
                   HappyTreeFriends::getLeafPermutationIndex(_bvh, left_child)))
             return;
@@ -337,8 +337,9 @@ struct TreeTraversal<BVH, Predicates, Callback, NearestPredicateTag>
   {
     auto const &predicate = Access::get(_predicates, queryIndex);
     auto const k = getK(predicate);
-    auto const distance = [geometry = getGeometry(predicate),
-                           bvh = _bvh](int node) {
+    auto const distance =
+        [geometry = getGeometry(predicate), bvh = _bvh](int node)
+    {
       using Details::distance;
       return distance(geometry, HappyTreeFriends::getBoundingVolume(bvh, node));
     };
