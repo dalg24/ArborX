@@ -20,46 +20,74 @@ namespace ArborX
 namespace Details
 {
 
-template <typename Data, typename Permute, bool AttachIndices = false>
+enum class Attachment
+{
+  none,
+  permuted_index,
+  original_index
+};
+
+template <typename Data, typename Permute, Attachment = Attachment::none>
 struct PermutedData
 {
   Data _data;
   Permute _permute;
-  KOKKOS_FUNCTION auto &operator()(int i) const { return _data(_permute(i)); }
+  // NOTE see if const-correctness must be sacrificed here
+  // KOKKOS_FUNCTION auto &operator()(int i) { return _data(_permute(i)); }
+  KOKKOS_FUNCTION auto /*const*/ &operator()(int i) const
+  {
+    return _data(_permute(i));
+  }
 };
 
 } // namespace Details
 
-template <typename Predicates, typename Permute, bool AttachIndices>
-struct AccessTraits<Details::PermutedData<Predicates, Permute, AttachIndices>,
+template <typename Predicates, typename Permute,
+          Details::Attachment attachment_kind>
+struct AccessTraits<Details::PermutedData<Predicates, Permute, attachment_kind>,
                     PredicatesTag>
 {
   using PermutedPredicates =
-      Details::PermutedData<Predicates, Permute, AttachIndices>;
+      Details::PermutedData<Predicates, Permute, attachment_kind>;
   using NativeAccess = AccessTraits<Predicates, PredicatesTag>;
-
-  static std::size_t size(PermutedPredicates const &permuted_predicates)
-  {
-    return NativeAccess::size(permuted_predicates._data);
-  }
-
-  template <bool _Attach = AttachIndices>
-  KOKKOS_FUNCTION static auto get(PermutedPredicates const &permuted_predicates,
-                                  std::enable_if_t<_Attach, std::size_t> index)
-  {
-    auto const permuted_index = permuted_predicates._permute(index);
-    return attach(NativeAccess::get(permuted_predicates._data, permuted_index),
-                  (int)index);
-  }
-
-  template <bool _Attach = AttachIndices>
-  KOKKOS_FUNCTION static auto get(PermutedPredicates const &permuted_predicates,
-                                  std::enable_if_t<!_Attach, std::size_t> index)
-  {
-    auto const permuted_index = permuted_predicates._permute(index);
-    return NativeAccess::get(permuted_predicates._data, permuted_index);
-  }
+  using Attachment = Details::Attachment;
+  using size_type = std::size_t;
   using memory_space = typename NativeAccess::memory_space;
+
+  static KOKKOS_FUNCTION size_type size(PermutedPredicates const &x)
+  {
+    return NativeAccess::size(x._data);
+  }
+
+  template <Attachment dummy = attachment_kind,
+            std::enable_if_t<attachment_kind == dummy &&
+                             attachment_kind == Attachment::original_index> * =
+                nullptr>
+  static KOKKOS_FUNCTION auto get(PermutedPredicates const &x, size_type index)
+  {
+    auto const permuted_index = x._permute(index);
+    return attach(NativeAccess::get(x._data, permuted_index), (int)index);
+  }
+
+  template <Attachment dummy = attachment_kind,
+            std::enable_if_t<attachment_kind == dummy &&
+                             attachment_kind == Attachment::permuted_index> * =
+                nullptr>
+  static KOKKOS_FUNCTION auto get(PermutedPredicates const &x, size_type index)
+  {
+    auto const permuted_index = x._permute(index);
+    return attach(NativeAccess::get(x._data, permuted_index),
+                  (int)permuted_index);
+  }
+
+  template <Attachment dummy = attachment_kind,
+            std::enable_if_t<attachment_kind == dummy &&
+                             attachment_kind == Attachment::none> * = nullptr>
+  static KOKKOS_FUNCTION auto get(PermutedPredicates const &x, size_type index)
+  {
+    auto const permuted_index = x._permute(index);
+    return NativeAccess::get(x._data, permuted_index);
+  }
 };
 
 } // namespace ArborX

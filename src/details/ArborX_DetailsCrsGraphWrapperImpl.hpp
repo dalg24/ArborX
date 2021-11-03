@@ -154,7 +154,7 @@ void queryImpl(ExecutionSpace const &space, Tree const &tree,
                    n_queries);
 
   using PermutedPredicates =
-      PermutedData<Predicates, PermuteType, true /*AttachIndices*/>;
+      PermutedData<Predicates, PermuteType, Attachment::original_index>;
   PermutedPredicates permuted_predicates = {predicates, permute};
 
   using PermutedOffset = PermutedData<OffsetView, PermuteType>;
