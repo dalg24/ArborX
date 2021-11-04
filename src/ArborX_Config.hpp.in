@@ -17,4 +17,7 @@
 #cmakedefine ARBORX_ENABLE_MPI
 #cmakedefine ARBORX_USE_CUDA_AWARE_MPI
 
+// feature test macros (value format YYYY-MM-DD)
+#define ARBORX_HALF_TRAVERSAL 20211104
+
 #endif
