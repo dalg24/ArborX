@@ -1,0 +1,235 @@
+    1  apt update
+    2  apt install git
+    3  cd
+    4  git clone https://github.com/wenbaoQIAO/Component-based-2D-3D-NNS-to-GPU-parallel-2D-3D-EMST.git
+    5  cd Component-based-2D-3D-NNS-to-GPU-parallel-2D-3D-EMST/
+    6  cd emst_coalition/
+    7  ls
+    8  apt install qmake
+    9  apt install qt
+   10  apt search qmake
+   11  apt install qt5-qmake
+   12  qmake lib/
+   13  qmake
+   14  qmake src/
+   15  tree .
+   16  apt install tree
+   17  tree .
+   18  cd test
+   19  qmake
+   20  ls
+   21  qmake test.pro 
+   22  qmake -o Makefile test.pro 
+   23  apt search qt
+   24  apt install qt5-default
+   25  qmake -o Makefile test.pro 
+   26  ls
+   27  make
+   28  apt search boost
+   29  apt install libboost-all-dev
+   30  make
+   31  vi ../../basic_components/include/Node.h +363
+   32  apt install vim
+   33  vi ../../basic_components/include/Node.h +363
+   34  vi ../../basic_components/include/GridOfNodes.h:1022
+   35  vi ../../basic_components/include/GridOfNodes.h +1022
+   36  make
+   37  vi test.pro 
+   38  ls /usr/local/cuda/lib64/
+   39  fg
+   40  qmake -o Makefile test.pro 
+   41  make
+   42  cd ../lib/
+   43  qmake -o Makefile lib.pro 
+   44  make
+   45  vi lib.pro 
+   46  qmake -o Makefile lib.pro 
+   47  make
+   48  fg
+   49  CUDA_DIR=/usr/local/cuda/lib64 make
+   50  CUDA_DIR=/usr/local/cuda/lib64 qmake -o Makefile lib.pro 
+   51  make
+   52  fg
+   53  qmake -o Makefile lib.pro 
+   54  make
+   55  git ls-file .. | grep CalculateurEMST.h
+   56  find ../.. -name CalculateurEMST.h
+   57  fg
+   58  FG
+   59  fg
+   60  make
+   61  fg
+   62  qmake -o Makefile lib.pro 
+   63  make
+   64  fg
+   65  make
+   66  fg
+   67  make
+   68  qmake -o Makefile lib.pro 
+   69  make
+   70  fg
+   71  make
+   72  find ../.. -name helper_function.h
+   73  find ../.. -name helper_functions.h
+   74  vi ../../basic_components/include/macros_cuda.h
+   75  make
+   76  fg
+   77  make
+   78  apt seatch qt5
+   79  apt search qt5
+   80  apt install qtbase5-dev
+   81  vi lib.pro 
+   82  fg
+   83  fg 4
+   84  qmake -o Makefile lib.pro 
+   85  make
+   86  df
+   87  fg
+   88  qmake -o Makefile lib.pro 
+   89  make
+   90  fg
+   91  tree /usr/include/ | grep QtCore
+   92  fg
+   93  qmake -o Makefile lib.pro 
+   94  make
+   95  apt search qthread
+   96  apt search QThread
+   97  tree /usr/include/ | grep QThread
+   98  find /usr/include/ -name QThread
+   99  fg
+  100  qmake -o Makefile lib.pro 
+  101  make
+  102  ls ../src/
+  103  fg
+  104  make
+  105  fg
+  106  make
+  107  qmake -o Makefile lib.pro 
+  108  make
+  109  git diff
+  110  history
+  111  make
+  112  ls ..\src\SolutionEMST.cu
+  113  vi ../src/CalculateurEMST.cu +371
+  114  make
+  115  fg
+  116  qmake -o Makefile lib.pro 
+  117  make
+  118  fg
+  119  make
+  120  qmake -o Makefile lib.pro 
+  121  make
+  122  fg
+  123  qmake -o Makefile lib.pro 
+  124  fg
+  125  make
+  126  fg
+  127  make
+  128  ls ../src/
+  129  ls ../..
+  130  find  ../.. -name*helper*
+  131  find  ../.. -name=*helper*
+  132  find  ../.. -name=helper
+  133  find  ../.. -name="*helper*"
+  134  find  ../.. -name="helper*"
+  135  find  ../.. -name="helper"
+  136  find  ../.. -name "helper"
+  137  find  ../.. -name "*helper*"
+  138  git diff
+  139  fg
+  140  apt search cuda
+  141  apt install cuda-samples-11-6
+  142  ls /usr/local/cuda/samples/
+  143  less /usr/local/cuda/samples/README_CUDA_Samples.txt 
+  144  cd ..
+  145  git clone https://github.com/nvidia/cuda-samples
+  146  ls
+  147  ls cuda-samples/
+  148  ls cuda-samples/Samples
+  149  ls cuda-samples/Samples/1_Utilities/
+  150  ls cuda-samples/
+  151  ls cuda-samples/Common/
+  152  fg 1
+  153  fg 2
+  154  fg 3
+  155  fg 4
+  156  git diff
+  157  vi basic_components/include/macros_cuda.h
+  158  vi ../basic_components/include/macros_cuda.h
+  159  fg 6
+  160  fg 3
+  161  fg 2
+  162  fg
+  163  dfg
+  164  fg
+  165  ls cuda-samples/Common/
+  166  fg
+  167  qmake -o Makefile lib.pro 
+  168  cd -
+  169  qmake -o Makefile lib.pro 
+  170  make
+  171  vi ./src/SolutionEMST.cu +443
+  172  vi ../src/SolutionEMST.cu +443
+  173  fg
+  174  make
+  175  fg
+  176  vi ../src/SolutionEMST.cu +443
+  177  make
+  178  fg
+  179  git grep cm_gpu ..
+  180  vi ../include/SolutionEMST.h 
+  181  git grep CellularMatrixMD ..
+  182  git grep CellularMatrixMD ../..
+  183  git grep operator<< ../..
+  184  git grep "operator<<" ../..
+  185  git diff
+  186  fg
+  187  git diff
+  188  make
+  189  git log1
+  190  git log
+  191  make
+  192  git grep gpuResize ..
+  193  fg
+  194  git grep getExtentsDual ..
+  195  git grep getExtentsDual ../..
+  196  vi ../../basic_components/include/ViewGrid.h
+  197  git grep Index ../..
+  198  vi ../../basic_components/include/Node.h
+  199  git grep getExtentsDual ../..
+  200  fg
+  201  git grep ViewG ../..
+  202  fg
+  203  make
+  204  ]
+  205  fg
+  206  make
+  207  d
+  208  fg
+  209  make
+  210  fg
+  211  git grep "operator<<" ../..
+  212  git grep "Multiout_.h" ../..
+  213  fg
+  214  make
+  215  fg
+  216  make
+  217  fg
+  218  make
+  219  fg
+  220  make
+  221  vi ../src/SolutionEMSTRW.cu +58
+  222  fg
+  223  make
+  224  fg
+  225  make
+  226  git diff
+  227  git remote add dalg24 https://github.com/dalg24/arborx.git
+  228  git checkout -b wenbao
+  229  git commit -am 'share with Andrey'
+  230  git commit -am 'share with Andrey' --author "Damien L-G <dalg24@gmail.com>"
+  231  git config --global user.email "dalg24@gamil.com"
+  232  git config --global user.email "dalg24@gmail.com"
+  233  git config --global user.name "Damien L-G"
+  234  git commit -am 'share with Andrey'
+  235  history > bash_history
