@@ -1,0 +1,14 @@
+# struct couple_leaves_tree_nearest_predicate_invoker
+
+*Defined at test/tstQueryTreeDegenerate.cpp#269*
+
+## Functions
+
+### run
+
+*public void run(boost::type<TestType> * )*
+
+*Defined at test/tstQueryTreeDegenerate.cpp#269*
+
+
+

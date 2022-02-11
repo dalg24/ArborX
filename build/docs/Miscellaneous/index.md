@@ -1,0 +1,12 @@
+# namespace Miscellaneous
+
+
+
+## Records
+
+* [not_exceeding_stack_capacity_spatial_predicate](not_exceeding_stack_capacity_spatial_predicate.md)
+* [not_exceeding_stack_capacity_spatial_predicate_invoker](not_exceeding_stack_capacity_spatial_predicate_invoker.md)
+* [not_exceeding_stack_capacity_nearest_predicate](not_exceeding_stack_capacity_nearest_predicate.md)
+* [not_exceeding_stack_capacity_nearest_predicate_invoker](not_exceeding_stack_capacity_nearest_predicate_invoker.md)
+
+
