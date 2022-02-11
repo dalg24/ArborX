@@ -368,7 +368,7 @@ bool CalculateurEMST::activate()
 }//activate
 
 #ifndef SEPARATE_COMPILATION
-#include "..\src\SolutionEMST.cu"
-#include "..\src\SolutionEMSTRW.cu"
-#include "..\src\SolutionEMSTOperators.cu"
+#include "../src/SolutionEMST.cu"
+#include "../src/SolutionEMSTRW.cu"
+#include "../src/SolutionEMSTOperators.cu"
 #endif

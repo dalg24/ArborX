@@ -1,7 +1,7 @@
 ﻿#include "config/ConfigParamsCF.h"
 #include "random_generator_cf.h"
 #include "CalculateurEMST.h"
-//#include "Multiout.h"
+#include "Multiout_.h"
 
 #include "SolutionEMST.h"
 
@@ -430,22 +430,26 @@ void SolutionEMST<DimP, DimCM>::initialize(NetLink& md_links, PointEuclidean& pM
     vgd = ViewG(pc, ext, _R);
 
     cout << "vgd dual : "
-         << vgd.getExtentsDual() << endl
+         //<< vgd.getExtentsDual() << endl
+         << "not available\n"
          << "vgd base : "
-         << vgd.getExtentsBase() << endl
+         //<< vgd.getExtentsBase() << endl
+         << "not available\n"
          << "vgd low level : "
-         << vgd.getExtents() << endl;
+         //<< vgd.getExtents() << endl;
+         << "not available\n";
     cout << "nNodes " << nNodes << ", sqrt(nNodes) " << sqrt(nNodes) << endl;
 
     // Cellular matrix initialisations
     cm_gpu.setViewG(vgd);
-    cm_gpu.gpuResize(vgd.getExtentsDual());
+    auto vgd_extents_dual =vgd.getExtentsDual();
+    cm_gpu.gpuResize(vgd_extents_dual[0], vgd_extents_dual[1]);
     cm_gpu.K_initialize(vgd);
 
     cout << "CM GPU RESIZE DONE " << cm_gpu.length_in_bytes << " " << cm_gpu.length << endl;
 
     cm_cpu.setViewG(vgd);
-    cm_cpu.resize(vgd.getExtentsDual());
+    cm_cpu.resize(vgd_extents_dual[0], vgd_extents_dual[1]);
     //cm_cpu.K_initialize_cpu(vgd);
 
     cout << "CM RESIZE DONE " << cm_cpu.length_in_bytes << " " << cm_cpu.length << endl;

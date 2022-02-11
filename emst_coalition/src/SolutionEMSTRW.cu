@@ -1,6 +1,6 @@
 #include <cmath>
 #include "SolutionEMST.h"
-//#include "Multiout.h"
+#include "Multiout_.h"
 
 #define TEST_CODE   0
 
@@ -55,9 +55,9 @@ void SolutionEMST<DimP, DimCM>::writeSolution(const char* file)
     IndexCM PCD = vgd.FDual(vgd.getCenterDual());
     cout << PCD << endl;
 
-    cout << vgd.FEuclid(pc) << endl;
-    cout << vgd.FEuclid(PC) << endl;
-    cout << vgd.FEuclid(PCD) << endl;
+    //cout << vgd.FEuclid(pc) << endl;
+    //cout << vgd.FEuclid(PC) << endl;
+    //cout << vgd.FEuclid(PCD) << endl;
     cout << "Test Som done" << endl;
 
     cout << "END WRITE" << std::endl;

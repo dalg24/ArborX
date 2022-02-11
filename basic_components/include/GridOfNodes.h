@@ -1019,7 +1019,7 @@ struct Grid : MultiGrid<Node, 2> {
         // mirror out-of-range position
         if (ix0 < 0) ix0 = abs(ix0 + 1);
         if (iy0 < 0) iy0 = abs(iy0 + 1);
-        if (ix0 >= width) ix0 = width * 2 - ix0 - 1;
+        if (ix0 >= this->width) ix0 = this->width * 2 - ix0 - 1;
         if (iy0 >= this->height) iy0 = this->height * 2 - iy0 - 1;
         // corner which is opposite to (ix0, iy0)
         int ix1 = ix0 + 1;

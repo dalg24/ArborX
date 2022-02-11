@@ -47,4 +47,4 @@ CONFIG(debug, debug|release) {
 
 CUDA_DIR      = "C:/Progra~1/NVIDIA~2/CUDA/v10.1"
 QMAKE_LIBDIR += $$CUDA_DIR/lib/x64
-LIBS         +=  -lcuda  -lcudart
+LIBS         +=  -lcuda  -lcudart -L/usr/local/cuda/lib64

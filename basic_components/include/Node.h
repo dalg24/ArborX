@@ -360,7 +360,7 @@ public:
 
     //! @brief Affectation
     DEVICE_HOST Index& operator=(super_type const& p2) {
-        Point::operator=(p2);//((Point&)*this) = p2;//
+        super_type::operator=(p2);//((Point&)*this) = p2;//
         return *this;
     }
 

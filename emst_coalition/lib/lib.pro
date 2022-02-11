@@ -6,6 +6,7 @@
 
 QT       += xml
 QT       -= gui
+QT       += core
 
 CONFIG += console
 CONFIG += exceptions rtti
@@ -39,7 +40,7 @@ win32 {
 unix {
         CONFIG += shared
 #static
-        QMAKE_CXXFLAGS +=
+        QMAKE_CXXFLAGS += -fPIC -fPIE
 #-mfpu=vfp
 #-mfloat-abi=hard
         DEFINES += QT_ARCH_ARMV6
@@ -113,6 +114,7 @@ win32:{
 
 #For wenbaoQiao computer configuration
   CUDA_DIR      = "C:/Progra~1/NVIDIA~2/CUDA/v10.1"#"C:/Progra~1/NVIDIA~2/CUDA/v9.1"
+  CUDA_DIR      = "/usr/local/cuda/lib64"
   QTDIR = C:\QT5.12_static #C:\QT5.10_static #C:\Qt\Qt5.9.1\5.9.1\Qt5.9_static
   BOOST_PATH= C:/boost_1_66_0/ #C:/boost_1_59_0
 
@@ -124,9 +126,20 @@ win32:{
   INCLUDEPATH  += ../../basic_components/include
   INCLUDEPATH  += ../../optimization_operators/include
   INCLUDEPATH  += ../../coalition_framework/include
+  INCLUDEPATH  += ../../emst_coalition
   INCLUDEPATH  += "C:\ProgramData\NVIDIA Corporation\CUDA Samples\v10.1\common\inc"
   LIBS         +=  -lcuda  -lcudart
 }
+
+INCLUDEPATH  += ../include
+INCLUDEPATH  += ../../basic_components/include
+INCLUDEPATH  += ../../optimization_operators/include
+INCLUDEPATH  += ../../coalition_framework/include
+INCLUDEPATH  += ../../emst_coalition
+INCLUDEPATH  += /usr/include/x86_64-linux-gnu/qt5
+INCLUDEPATH  += /usr/include/x86_64-linux-gnu/qt5/QtCore
+INCLUDEPATH  += ../src
+INCLUDEPATH  += ../cuda-samples/Common
 
 #DEFINES += "CUDA_FLOAT=$${CUDA_FLOAT}"
 
@@ -135,7 +148,7 @@ separate_compilation {
 cuda:NVCC_OPTIONS += -DSEPARATE_COMPILATION
 }
 
-NVCC_OPTIONS += --use_fast_math
+NVCC_OPTIONS += --use_fast_math -Xcompiler -fPIC
 #-DCUDA_FLOAT=$${CUDA_FLOAT}
 
 #--fmad false
@@ -152,13 +165,13 @@ QMAKE_EXTRA_COMPILERS += cudaIntr
 
 CONFIG(release, debug|release) {
   OBJECTS_DIR = ./release
-bit64:cudaIntr.commands = $$CUDA_DIR/bin/nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 64 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
-else:cudaIntr.commands = $$CUDA_DIR/bin/nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 32 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
+bit64:cudaIntr.commands = nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 64 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
+else:cudaIntr.commands = nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 32 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
 }
 CONFIG(debug, debug|release) {
   OBJECTS_DIR = ./debug
-bit64:cudaIntr.commands = $$CUDA_DIR/bin/nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 64 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
-else:cudaIntr.commands = $$CUDA_DIR/bin/nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 32 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
+bit64:cudaIntr.commands = nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 64 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
+else:cudaIntr.commands = nvcc $$NVCC_OPTIONS $$CUDA_INC $$LIBS --machine 32 $$CUDA_ARCH -c -o ${QMAKE_FILE_OUT} ${QMAKE_FILE_NAME}
 }
 
 #cuda.dependency_type = TYPE_C
