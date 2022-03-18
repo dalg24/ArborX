@@ -49,12 +49,12 @@ pipeline {
                         docker {
                             image 'rocm/dev-ubuntu-20.04:4.5.2-complete'
                             label 'AMD_Radeon_Instinct_MI100 && rocm-docker'
-                            args '--device=/dev/kfd --device=/dev/dri --security-opt seccomp=unconfined --group-add video --env HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES}'
+                            args '--device=/dev/kfd --device=/dev/dri --security-opt seccomp=unconfined --group-add video --env HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES} --env AMDGPU_TARGET=${AMDGPU_TARGET}'
                         }
                     }
                     environment {
                         CTEST_OPTIONS = '--timeout 180 --no-compress-output -T Test'
-                        CMAKE_OPTIONS = '-D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_STANDARD=17 -D CMAKE_CXX_EXTENSIONS=OFF -DCMAKE_CXX_COMPILER=hipcc'
+                        CMAKE_OPTIONS = '-D CMAKE_BUILD_TYPE=Release -D CMAKE_CXX_STANDARD=17 -D CMAKE_CXX_EXTENSIONS=OFF -DCMAKE_CXX_COMPILER=hipcc -DGPU_TARGETS=${AMDGPU_TARGET}'
                         ROCM_PATH = '/opt/rocm'
                     }
                     steps {
