@@ -42,12 +42,29 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
 
   using Access = AccessTraits<Predicates, PredicatesTag>;
 
+  using Policy = Kokkos::RangePolicy<Kokkos::Cuda>;
+  Policy _policy;
+  Policy get_policy() const { return _policy; }
+  using IndexType = Policy::index_type;
+
+  KOKKOS_FUNCTION void operator()() const
+  {
+    IndexType const work_stride = blockDim.y * gridDim.x;
+    IndexType const work_end = _policy.end();
+    for (IndexType i = _policy.begin() + threadIdx.y + blockDim.y * blockIdx.x;
+         i < work_end; i += work_stride)
+    {
+      this->operator()(i);
+    }
+  }
+
   template <typename ExecutionSpace>
   TreeTraversal(ExecutionSpace const &space, BVH const &bvh,
                 Predicates const &predicates, Callback const &callback)
       : _bvh{bvh}
       , _predicates{predicates}
       , _callback{callback}
+      , _policy{space, (IndexType)0, (IndexType)Access::size(predicates)}
   {
     if (_bvh.empty())
     {
@@ -63,10 +80,27 @@ struct TreeTraversal<BVH, Predicates, Callback, SpatialPredicateTag>
     }
     else
     {
+#if 0
       Kokkos::parallel_for("ArborX::TreeTraversal::spatial",
                            Kokkos::RangePolicy<ExecutionSpace>(
                                space, 0, Access::size(predicates)),
                            *this);
+#endif
+      uint64_t kpID = 0;
+      std::string const label = "ArborX::TreeTraversal::spatial";
+      Kokkos::Tools::Impl::begin_parallel_for(_policy, *this, label, kpID);
+
+      IndexType const nwork = _policy.end() - _policy.begin();
+      int const block_size = 128; // <- adjust
+      dim3 block(1, block_size, 1);
+      cudaDeviceProp const &device_prop = space.cuda_device_prop();
+      int const grid_size = std::min<int>((nwork + block_size - 1) / block_size,
+                                          device_prop.maxGridSize[0]);
+      dim3 grid(grid_size, 1, 1);
+      Kokkos::Impl::CudaParallelLaunch<TreeTraversal, Kokkos::LaunchBounds<>>(
+          *this, grid, block, 0, space.impl_internal_space_instance(), false);
+
+      Kokkos::Tools::Impl::end_parallel_for(_policy, *this, label, kpID);
     }
   }
 
