@@ -1,6 +1,7 @@
 ---
 defaults:
   # _posts
+  - title: HPX now available as an experimental backend
   - scope:
       path: ""
       type: posts

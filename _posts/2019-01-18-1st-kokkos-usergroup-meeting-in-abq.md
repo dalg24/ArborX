@@ -1,6 +1,7 @@
 ---
 defaults:
   # _posts
+  - title: 1st Kokkos Usergroup Meeting in Albuquerque NM
   - scope:
       path: ""
       type: posts
@@ -13,7 +14,6 @@ defaults:
       related: true
 ---
 
-# 1st Kokkos Usergroup Meeting in Albuquerque NM
 The Kokkos team is announcing the first Kokkos Usergroup Meeting to be held in
 Albuquerque New Mexico, USA April 23rd through 25th. The meeting will give the
 growing Kokkos community a chance to present progress in adopting Kokkos,
