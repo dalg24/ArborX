@@ -1,3 +1,12 @@
+defaults:
+  # _pages
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: single
+      author_profile: true
+
 The Kokkos C++ Performance Portability EcoSystem is a production level solution
 for writing modern C++ applications in a hardware agnostic way. It is part of
 the US Department of Energies Exascale Project – the leading effort in the US
