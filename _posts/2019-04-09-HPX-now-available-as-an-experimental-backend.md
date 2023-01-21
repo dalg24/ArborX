@@ -1,11 +1,11 @@
 ---
 defaults:
   # _posts
-  - title: HPX now available as an experimental backend
   - scope:
       path: ""
       type: posts
     values:
+      title: HPX now available as an experimental backend
       layout: single
       author_profile: true
       read_time: true
