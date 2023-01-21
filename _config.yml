@@ -11,7 +11,7 @@ remote_theme             : "mmistakes/minimal-mistakes@4.24.0"
 
 # Site Settings
 locale                   : "en-US"
-title                    : "Site Title"
+title                    : "Kokkos"
 title_separator          : "-"
 name                     : "Your Name"
 description              : "An amazing website."
