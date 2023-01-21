@@ -1,3 +1,4 @@
+---
 defaults:
   # _pages
   - scope:
@@ -6,6 +7,8 @@ defaults:
     values:
       layout: single
       author_profile: true
+permalink: /about/
+---
 
 The Kokkos C++ Performance Portability EcoSystem is a production level solution
 for writing modern C++ applications in a hardware agnostic way. It is part of
