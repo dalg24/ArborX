@@ -1,7 +1,7 @@
 ---
+title: 1st Kokkos Usergroup Meeting in Albuquerque NM
 defaults:
   # _posts
-  - title: 1st Kokkos Usergroup Meeting in Albuquerque NM
   - scope:
       path: ""
       type: posts
