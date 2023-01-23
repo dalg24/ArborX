@@ -1,5 +1,7 @@
 ---
 title: 1st Kokkos Usergroup Meeting in Albuquerque NM
+header:
+  teaser: /assets/images/featured-image-kokkos-2.jpeg
 defaults:
   # _posts
   - scope:

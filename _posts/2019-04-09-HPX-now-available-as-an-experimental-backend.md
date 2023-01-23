@@ -1,5 +1,7 @@
 ---
 title: HPX now available as an experimental backend
+header:
+  teaser: /assets/images/featured-image-kokkos-3.jpeg
 defaults:
   # _posts
   - scope:

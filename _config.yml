@@ -17,7 +17,7 @@ name                     : "Your Name"
 description              : "An amazing website."
 url                      : # the base hostname & protocol for your site e.g. "https://mmistakes.github.io"
 baseurl                  : # the subpath of your site, e.g. "/blog"
-repository               : # GitHub username/repo-name e.g. "mmistakes/minimal-mistakes"
+repository               : "dalg24/ArborX" # GitHub username/repo-name e.g. "mmistakes/minimal-mistakes"
 teaser                   : "/assets/images/kokkos-ecosystem-hero.jpeg" # path of fallback teaser image, e.g. "/assets/images/500x300.png"
 logo                     : "/assets/images/kokkos-strip.jpeg"
 # breadcrumbs            : false # true, false (default)
