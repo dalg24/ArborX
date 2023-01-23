@@ -21,6 +21,7 @@ repository               : "dalg24/ArborX" # GitHub username/repo-name e.g. "mmi
 teaser                   : "/assets/images/kokkos-ecosystem-hero.jpeg" # path of fallback teaser image, e.g. "/assets/images/500x300.png"
 logo                     : "/assets/images/kokkos-strip.jpeg"
 # breadcrumbs            : false # true, false (default)
+breadcrumbs              : true
 words_per_minute         : 200
 comments:
   provider               : # false (default), "disqus", "discourse", "facebook", "google-plus", "staticman", "staticman_v2" "custom"
