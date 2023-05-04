@@ -35,9 +35,9 @@ struct NeighborListPredicateGetter
 };
 
 template <class ExecutionSpace, class Primitives, class Indices, class Counts>
-void findHalfNeighborList2D(ExecutionSpace const &space,
-                            Primitives const &primitives, float radius,
-                            Indices &indices, Counts &counts)
+int findHalfNeighborList2D(ExecutionSpace const &space,
+                           Primitives const &primitives, float radius,
+                           Indices &indices, Counts &counts)
 {
   KokkosExt::ScopedProfileRegion guard(
       "ArborX::Experimental::HalfNeighborList2D");
@@ -54,20 +54,6 @@ void findHalfNeighborList2D(ExecutionSpace const &space,
   if (buffer_size > 0)
   {
     Kokkos::Profiling::pushRegion(
-        "ArborX::Experimental::HalfNeighborList::Count");
-
-    KokkosExt::reallocWithoutInitializing(space, counts, n);
-    Kokkos::deep_copy(space, counts, 0);
-    HalfTraversal(
-        space, bvh,
-        KOKKOS_LAMBDA(int, int j) { Kokkos::atomic_increment(&counts(j)); },
-        NeighborListPredicateGetter{radius});
-
-    Kokkos::Profiling::popRegion();
-  }
-  else
-  {
-    Kokkos::Profiling::pushRegion(
         "ArborX::Experimental::HalfNeighborList::CountAndFill");
 
     KokkosExt::reallocWithoutInitializing(space, counts, n);
@@ -75,12 +61,27 @@ void findHalfNeighborList2D(ExecutionSpace const &space,
     HalfTraversal(
         space, bvh,
         KOKKOS_LAMBDA(int i, int j) {
-          int const pos = Kokkos::atomic_fetch_inc(&counts(j));
+          // int const pos = Kokkos::atomic_fetch_inc(&counts(i));
+          int const pos = counts(i)++;
           if (pos < buffer_size)
           {
-            indices(j, pos) = i;
+            indices(i, pos) = j;
           }
         },
+        NeighborListPredicateGetter{radius});
+
+    Kokkos::Profiling::popRegion();
+  }
+  else
+  {
+    Kokkos::Profiling::pushRegion(
+        "ArborX::Experimental::HalfNeighborList::Count");
+
+    KokkosExt::reallocWithoutInitializing(space, counts, n);
+    Kokkos::deep_copy(space, counts, 0);
+    HalfTraversal(
+        space, bvh,
+        KOKKOS_LAMBDA(int i, int j) { Kokkos::atomic_increment(&counts(i)); },
         NeighborListPredicateGetter{radius});
 
     Kokkos::Profiling::popRegion();
@@ -88,7 +89,7 @@ void findHalfNeighborList2D(ExecutionSpace const &space,
   auto max_neighbors = max(space, counts);
   if (max_neighbors <= buffer_size)
   {
-    return;
+    return max_neighbors;
   }
 
   Kokkos::Profiling::pushRegion("ArborX::Experimental::HalfNeighborList::Fill");
@@ -98,11 +99,14 @@ void findHalfNeighborList2D(ExecutionSpace const &space,
   HalfTraversal(
       space, bvh,
       KOKKOS_LAMBDA(int i, int j) {
-        indices(j, Kokkos::atomic_fetch_inc(&counts(j))) = i;
+        // indices(i, Kokkos::atomic_fetch_inc(&counts(i))) = j;
+        indices(i, counts(i)++) = j;
       },
       NeighborListPredicateGetter{radius});
 
   Kokkos::Profiling::popRegion();
+
+  return max_neighbors;
 }
 
 template <class ExecutionSpace, class Primitives, class Offsets, class Indices>
@@ -150,9 +154,9 @@ void findHalfNeighborList(ExecutionSpace const &space,
 }
 
 template <class ExecutionSpace, class Primitives, class Indices, class Counts>
-void findFullNeighborList2D(ExecutionSpace const &space,
-                            Primitives const &primitives, float radius,
-                            Indices &indices, Counts &counts)
+int findFullNeighborList2D(ExecutionSpace const &space,
+                           Primitives const &primitives, float radius,
+                           Indices &indices, Counts &counts)
 {
   KokkosExt::ScopedProfileRegion guard(
       "ArborX::Experimental::FullNeighborList2D");
@@ -166,8 +170,52 @@ void findFullNeighborList2D(ExecutionSpace const &space,
 
   int const buffer_size =
       indices.extent_int(0) == n ? indices.extent_int(1) : 0;
-  if (buffer_size > 0)
+  auto const [foo, bar] =
+  (buffer_size > 0) ? [&]
   {
+    Kokkos::Profiling::pushRegion(
+        "ArborX::Experimental::FullNeighborList2D::CountAndFill");
+
+    KokkosExt::reallocWithoutInitializing(space, counts, n);
+    Kokkos::deep_copy(space, counts, 0);
+    auto counts_copy =
+        KokkosExt::clone(space, counts, counts.label() + "_copy");
+    HalfTraversal(
+        space, bvh,
+        KOKKOS_LAMBDA(int i, int j) {
+          Kokkos::atomic_increment(&counts_copy(j));
+          // int const pos = Kokkos::atomic_fetch_inc(&counts(i));
+          int const pos = counts(i)++;
+          if (pos < buffer_size)
+          {
+            indices(i, pos) = j;
+          }
+        },
+        NeighborListPredicateGetter{radius});
+
+    Kokkos::Profiling::popRegion();
+    int max_neighbors;
+    int partial_max_neighbors;
+    Kokkos::parallel_reduce(
+        "ArborX::Experimental::CombineAndReduceMax",
+        Kokkos::RangePolicy<ExecutionSpace>(space, 0, n),
+        KOKKOS_LAMBDA(int i, int &lpmax, int &lmax) {
+          auto const counts_i = counts(i);
+          if (counts_i > lpmax)
+          {
+            lpmax = counts_i;
+          }
+          auto const total_counts_i = counts_i + counts_copy(i);
+          if (total_counts_i > lmax)
+          {
+            lmax = total_counts_i;
+          }
+        },
+        Kokkos::Max<int>(partial_max_neighbors),
+        Kokkos::Max<int>(max_neighbors));
+    return std::make_pair(partial_max_neighbors, max_neighbors);
+  }() :
+  [&]{
     Kokkos::Profiling::pushRegion(
         "ArborX::Experimental::FullNeighborList2D::Count");
 
@@ -182,32 +230,13 @@ void findFullNeighborList2D(ExecutionSpace const &space,
         NeighborListPredicateGetter{radius});
 
     Kokkos::Profiling::popRegion();
-  }
-  else
-  {
-    Kokkos::Profiling::pushRegion(
-        "ArborX::Experimental::FullNeighborList2D::CountAndFill");
-
-    KokkosExt::reallocWithoutInitializing(space, counts, n);
-    Kokkos::deep_copy(space, counts, 0);
-    HalfTraversal(
-        space, bvh,
-        KOKKOS_LAMBDA(int i, int j) {
-          Kokkos::atomic_increment(&counts(i));
-          int const pos = Kokkos::atomic_fetch_inc(&counts(j));
-          if (pos < buffer_size)
-          {
-            indices(j, pos) = i;
-          }
-        },
-        NeighborListPredicateGetter{radius});
-
-    Kokkos::Profiling::popRegion();
-  }
+    auto max_neighbors = max(space, counts);
+    return std::make_pair(max_neighbors, 0);
+  }();
   auto max_neighbors = max(space, counts);
   if (max_neighbors <= buffer_size)
   {
-    return;
+    return max_neighbors;
   }
   // NOTE can do better if counting half fit in the buffer
 
@@ -219,7 +248,7 @@ void findFullNeighborList2D(ExecutionSpace const &space,
   HalfTraversal(
       space, bvh,
       KOKKOS_LAMBDA(int i, int j) {
-        indices(j, Kokkos::atomic_fetch_inc(&counts(j))) = i;
+        indices(i, Kokkos::atomic_fetch_inc(&counts(i))) = j;
       },
       NeighborListPredicateGetter{radius});
 
@@ -243,6 +272,8 @@ void findFullNeighborList2D(ExecutionSpace const &space,
       });
 
   Kokkos::Profiling::popRegion();
+
+  return max_neighbors;
 }
 
 template <class ExecutionSpace, class Primitives, class Offsets, class Indices>

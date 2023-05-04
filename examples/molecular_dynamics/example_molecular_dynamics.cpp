@@ -71,9 +71,9 @@ int main(int argc, char *argv[])
   float const dx = 1.7f;
   float const dy = 1.7f;
   float const dz = 1.7f;
-  int const nx = 10;
-  int const ny = 10;
-  int const nz = 10;
+  int const nx = 100;
+  int const ny = 100;
+  int const nz = 100;
   int const n = 4 * nx * ny * nz;
 
   auto const dt = 5e-3f; // time step
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
                                              offsets, indices);
   Kokkos::Profiling::popRegion();
 
-  Kokkos::Profiling::pushRegion("2D");
+  Kokkos::Profiling::pushRegion("2D half");
   Kokkos::View<int **, MemorySpace> indices2("Example::indices2", 0, 0);
   Kokkos::View<int *, MemorySpace> counts("Example::counts", 0);
   ArborX::Experimental::findHalfNeighborList2D(execution_space, particles, r,
@@ -149,6 +149,12 @@ int main(int argc, char *argv[])
   ArborX::Experimental::findHalfNeighborList2D(execution_space, particles, r,
                                                indices2, counts);
   Kokkos::Profiling::popRegion();
+
+  Kokkos::Profiling::pushRegion("2D full");
+  ArborX::Experimental::findFullNeighborList2D(execution_space, particles, r,
+                                               indices2, counts);
+  Kokkos::Profiling::popRegion();
+
 
   Kokkos::View<float *[3], MemorySpace> forces(
       Kokkos::view_alloc(execution_space, "Example::forces"), n);
