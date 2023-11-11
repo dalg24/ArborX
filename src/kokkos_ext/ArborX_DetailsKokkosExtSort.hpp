@@ -95,7 +95,8 @@ void sortByKey(ExecutionSpace const &space, Keys &keys, Values &values)
   if (n == 0)
     return;
 
-  auto [min_val, max_val] = ArborX::minMax(space, keys);
+  auto min_val = ArborX::min(space, keys);
+  auto max_val = ArborX::max(space, keys);
   if (min_val == max_val)
     return;
 

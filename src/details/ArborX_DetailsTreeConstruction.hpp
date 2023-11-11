@@ -27,11 +27,27 @@ inline void calculateBoundingBoxOfTheScene(ExecutionSpace const &space,
                                            Indexables const &indexables,
                                            Box &scene_bounding_box)
 {
-  Kokkos::parallel_reduce(
-      "ArborX::TreeConstruction::calculate_bounding_box_of_the_scene",
-      Kokkos::RangePolicy<ExecutionSpace>(space, 0, indexables.size()),
-      KOKKOS_LAMBDA(int i, Box &update) { expand(update, indexables(i)); },
-      Kokkos::Sum<Box>{scene_bounding_box});
+  constexpr int dim = GeometryTraits::dimension<Box>::value;
+  for (int d = 0; d < dim; ++d) {
+    Kokkos::parallel_reduce(
+        "ArborX::TreeConstruction::calculate_bounding_box_of_the_scene_min",
+        Kokkos::RangePolicy<ExecutionSpace>(space, 0, indexables.size()),
+        KOKKOS_LAMBDA(int i, float &update) { 
+          Box box{};
+          expand(box, indexables(i));
+          update = Kokkos::min(box.minCorner()[d], update);
+        },
+        Kokkos::Min<float>{scene_bounding_box.minCorner()[d]});
+    Kokkos::parallel_reduce(
+        "ArborX::TreeConstruction::calculate_bounding_box_of_the_scene_max",
+        Kokkos::RangePolicy<ExecutionSpace>(space, 0, indexables.size()),
+        KOKKOS_LAMBDA(int i, float &update) { 
+          Box box{};
+          expand(box, indexables(i));
+          update = Kokkos::max(box.maxCorner()[d], update);
+        },
+        Kokkos::Max<float>{scene_bounding_box.maxCorner()[d]});
+  }
 }
 
 template <typename ExecutionSpace, typename Indexables,
