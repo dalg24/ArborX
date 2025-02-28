@@ -171,6 +171,74 @@ struct SomeCallback
   {}
 };
 
+template <class ExecutionSpace, class Functor, class Offsets, class Values>
+void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
+                       Offsets const &offsets, Values &values)
+{
+  int n = offsets.extent(0) + 1;
+  int const max_storage = values.extent(0);
+  int total_count;
+  Kokkos::parallel_scan(
+      Kokkos::RangePolicy(space, 0, n),
+      KOKKOS_LAMBDA(int i, int &partial_count, bool is_final) {
+        int count = 0;
+        desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
+                                 desul::MemoryScopeDevice>
+            ref{count};
+        if (!is_final)
+        {
+          fun(
+              i, KOKKOS_LAMBDA() { ++ref; });
+
+          partial_count += count;
+        }
+        else
+        {
+          auto offset_i = offsets[i];
+          fun(
+              i, KOKKOS_LAMBDA(auto val) {
+                auto pos = offset_i + ref++;
+                if (pos < max_storage)
+                  values[pos] = val;
+              });
+          partial_count += count;
+          offsets[i + 1] = partial_count;
+        }
+      },
+      total_count);
+  Kokkos::printf("total count %d\n", total_count);
+  if (total_count < max_storage)
+  {
+    return;
+  }
+  int restart_index;
+  Kokkos::parallel_reduce(
+      Kokkos::RangePolicy(space, 0, n),
+      KOKKOS_LAMBDA(int i, int &partial_max) {
+        if (i > partial_max && offsets[i + 1] < max_storage)
+        {
+          partial_max = i;
+        }
+      },
+      Kokkos::Max<int>{restart_index});
+  Kokkos::printf("restart index %d\n", restart_index);
+  Kokkos::resize(values, total_count);
+  Kokkos::parallel_for(
+      Kokkos::RangePolicy{space, restart_index, n}, KOKKOS_LAMBDA(int i) {
+        int count = 0;
+        desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
+                                 desul::MemoryScopeDevice>
+            ref{count};
+        auto offset_i = offsets[i];
+        fun(
+            i, KOKKOS_LAMBDA(auto val) {
+              auto pos = offset_i + ref++;
+              values[pos] = val;
+            });
+        KOKKOS_ASSERT(offsets[i + 1] == offset_i + count);
+      });
+}
+
 int main(int argc, char *argv[])
 {
   Kokkos::ScopeGuard guard(argc, argv);
@@ -188,39 +256,14 @@ int main(int argc, char *argv[])
     ArborX::BoundingVolumeHierarchy bvh{space, primitives, indexable_getter};
 
     Kokkos::View<int *, ExecutionSpace> values("Example::values", 20);
+    // Kokkos::View<int *, ExecutionSpace> values("Example::values", 4);
     Kokkos::View<int *, ExecutionSpace> offsets("Example::offsets",
                                                 npredicates + 1);
 
     Foo foo{bvh, ArborX::Details::AccessValues<Dummy>{predicates},
             SomeCallback{}};
 
-    // ALGO START HERE
-    int total_count;
-    Kokkos::parallel_scan(
-        Kokkos::RangePolicy(space, 0, npredicates),
-        KOKKOS_LAMBDA(int i, int &partial_count, bool is_final) {
-          int count = 0;
-          desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
-                                   desul::MemoryScopeDevice>
-              ref{count};
-          if (!is_final)
-          {
-            foo(
-                i, KOKKOS_LAMBDA() { ++ref; });
-
-            partial_count += count;
-          }
-          else
-          {
-            auto offset_i = offsets(i);
-            foo(
-                i, KOKKOS_LAMBDA(auto val) { values[offset_i + ref++] = val; });
-            partial_count += count;
-            offsets[i + 1] = partial_count;
-          }
-        },
-        total_count);
-    Kokkos::printf("total count %d\n", total_count);
+    theAlgoWithNoName(space, foo, offsets, values);
 
     std::cout << "offsets (bvh): " << offsets << std::endl;
     std::cout << "values (bvh): " << values << std::endl;
