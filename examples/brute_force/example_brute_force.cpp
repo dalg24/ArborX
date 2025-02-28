@@ -137,13 +137,14 @@ struct Foo
 // END ARBORX INTERNALS
 
 template <class ExecutionSpace, class Functor, class Offsets, class Values>
-void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
-                       Offsets const &offsets, Values &values)
+void theAlgoWithNoNameV1(ExecutionSpace const space, Functor const &fun,
+                         Offsets const &offsets, Values &values)
 {
-  int n = offsets.extent(0) + 1;
+  int n = offsets.extent(0) - 1;
   int const max_storage = values.extent(0);
   int total_count;
   Kokkos::parallel_scan(
+      "TheAlgoWithNoName::V1::count_and_try_to_fill",
       Kokkos::RangePolicy(space, 0, n),
       KOKKOS_LAMBDA(int i, int &partial_count, bool is_final) {
         int count = 0;
@@ -165,13 +166,13 @@ void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
         }
       },
       total_count);
-  Kokkos::printf("total count %d\n", total_count);
   if (total_count < max_storage)
   {
     return;
   }
   int restart_index;
   Kokkos::parallel_reduce(
+      "TheAlgoWithNoName::V1::find_restart_index",
       Kokkos::RangePolicy(space, 0, n),
       KOKKOS_LAMBDA(int i, int &partial_max) {
         if (i > partial_max && offsets[i + 1] < max_storage)
@@ -180,9 +181,10 @@ void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
         }
       },
       Kokkos::Max<int>{restart_index});
-  Kokkos::printf("restart index %d\n", restart_index);
-  Kokkos::resize(values, total_count);
+  Kokkos::resize(Kokkos::view_alloc(Kokkos::WithoutInitializing, space), values,
+                 total_count);
   Kokkos::parallel_for(
+      "TheAlgoWithNoName::V1::fill_remainder",
       Kokkos::RangePolicy{space, restart_index, n}, KOKKOS_LAMBDA(int i) {
         int count = 0;
         auto offset_i = offsets[i];
@@ -192,6 +194,60 @@ void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
         });
         KOKKOS_ASSERT(offsets[i + 1] == offset_i + count);
       });
+}
+
+template <class ExecutionSpace, class Functor, class Offsets, class Values>
+void theAlgoWithNoNameV2(ExecutionSpace const space, Functor const &fun,
+                         Offsets const &offsets, Values &values)
+{
+  int n = offsets.extent(0) - 1;
+  Kokkos::parallel_for(
+      "TheAlgoWithNoName::V2::count", Kokkos::RangePolicy(space, 0, n),
+      KOKKOS_LAMBDA(int i) {
+        int count = 0;
+        fun(i, [&count] { ++count; });
+        offsets[i] = count;
+      });
+  int total_count;
+  Kokkos::parallel_scan(
+      "TheAlgoWithNoName::V2::compute_offsets",
+      Kokkos::RangePolicy{space, 0, n + 1},
+      KOKKOS_LAMBDA(int i, int &partial_count, bool is_final) {
+        int const offset_i = offsets[i];
+        if (is_final)
+          offsets[i] = partial_count;
+        partial_count += offset_i;
+      },
+      total_count);
+  Kokkos::printf("total count %d\n", total_count);
+  Kokkos::resize(Kokkos::view_alloc(Kokkos::WithoutInitializing, space), values,
+                 total_count);
+  Kokkos::parallel_for(
+      "TheAlgoWithNoName::V2::fill", Kokkos::RangePolicy{space, 0, n},
+      KOKKOS_LAMBDA(int i) {
+        int count = 0;
+        auto offset_i = offsets[i];
+        fun(i, [&](typename Values::value_type const &val) {
+          auto pos = offset_i + count++;
+          values[pos] = val;
+        });
+        KOKKOS_ASSERT(offsets[i + 1] == offset_i + count);
+      });
+}
+
+template <class ExecutionSpace, class Functor, class Offsets, class Values>
+void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
+                       Offsets const &offsets, Values &values)
+{
+  // PRECONDITIONS offsets is properly sized and zeroed out.
+  static_assert(Kokkos::is_execution_space_v<ExecutionSpace>);
+  static_assert(Kokkos::is_view_v<Offsets>);
+  static_assert(Kokkos::is_view_v<Values>);
+  int const max_storage = values.extent(0);
+  if (max_storage > 0)
+    theAlgoWithNoNameV1(space, fun, offsets, values);
+  else
+    theAlgoWithNoNameV2(space, fun, offsets, values);
 }
 
 int main(int argc, char *argv[])
@@ -210,8 +266,9 @@ int main(int argc, char *argv[])
   {
     ArborX::BoundingVolumeHierarchy bvh{space, primitives, indexable_getter};
 
-    Kokkos::View<int *, ExecutionSpace> values("Example::values", 20);
-    // Kokkos::View<int *, ExecutionSpace> values("Example::values", 4);
+    // Kokkos::View<int *, ExecutionSpace> values("Example::values", 0);
+    // Kokkos::View<int *, ExecutionSpace> values("Example::values", 20);
+    Kokkos::View<int *, ExecutionSpace> values("Example::values", 4);
     Kokkos::View<int *, ExecutionSpace> offsets("Example::offsets",
                                                 npredicates + 1);
 
