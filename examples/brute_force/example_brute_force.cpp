@@ -12,8 +12,13 @@
 #include <ArborX.hpp>
 
 #include <Kokkos_Core.hpp>
+#include <Kokkos_Macros.hpp>
 
+#include <cstdlib>
 #include <iostream>
+
+#include <desul/atomics/Atomic_Ref.hpp>
+#include <desul/atomics/Common.hpp>
 
 struct Dummy
 {
@@ -78,6 +83,94 @@ std::ostream &operator<<(std::ostream &os, View const &view)
   return os;
 }
 
+struct Count
+{};
+struct Fill
+{};
+
+struct CountingCallback
+{
+  using AtomicRef = desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
+                                             desul::MemoryScopeDevice>;
+  AtomicRef count_;
+  template <class Predicate, class Value>
+  KOKKOS_FUNCTION void operator()(Predicate, Value) const
+  {
+    // Kokkos::printf("bim\n");
+    ++count_;
+  }
+};
+struct FillingCallback
+{
+  using AtomicRef = desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
+                                             desul::MemoryScopeDevice>;
+  AtomicRef count_;
+  using OutputView = Kokkos::View<int *>;
+  OutputView out_;
+  template <class Predicate, class Value>
+  KOKKOS_FUNCTION void operator()(Predicate, Value const &value) const
+  {
+    // Kokkos::printf("bam\n");
+    out_[count_++] = value;
+  }
+};
+
+template <class Callback, class Out>
+struct CallbackWrapper
+{
+  Callback callback_;
+  Out out_;
+  KOKKOS_FUNCTION CallbackWrapper(Callback const &callback, Out const &out)
+      : callback_(callback)
+      , out_(out)
+  {}
+  template <class Predicate, class Value>
+  KOKKOS_FUNCTION void operator()(Predicate const &predicate,
+                                  Value const &value) const
+  {
+    if constexpr (std::is_invocable_v<Out const &, Value const &>)
+    {
+      out_(value);
+    }
+    else if constexpr (std::is_invocable_v<Out const &>)
+    {
+      out_();
+    }
+    else
+    {
+      static_assert(std::is_void_v<Out>);
+    }
+    callback_(predicate, value);
+  }
+};
+
+template <class BVH, class Predicates, class Callback>
+struct Foo
+{
+  BVH bvh_;
+  Predicates predicates_;
+  Callback callback_;
+  Foo(BVH const &bvh, Predicates const &predicates, Callback const &callback)
+      : bvh_(bvh)
+      , predicates_(predicates)
+      , callback_(callback)
+  {}
+  template <class IncrementCounter>
+  KOKKOS_FUNCTION void operator()(int i, IncrementCounter const &counter) const
+  {
+    ArborX::Details::TreeTraversal traverse(
+        bvh_, CallbackWrapper(callback_, counter));
+    traverse(predicates_(i));
+  }
+};
+
+struct SomeCallback
+{
+  template <class P, class V>
+  KOKKOS_FUNCTION void operator()(P, V) const
+  {}
+};
+
 int main(int argc, char *argv[])
 {
   Kokkos::ScopeGuard guard(argc, argv);
@@ -91,36 +184,48 @@ int main(int argc, char *argv[])
   DummyIndexableGetter indexable_getter{nprimitives};
   Dummy predicates{npredicates};
 
-  unsigned int out_count;
   {
     ArborX::BoundingVolumeHierarchy bvh{space, primitives, indexable_getter};
 
-    Kokkos::View<int *, ExecutionSpace> indices("Example::indices_ref", 0);
-    Kokkos::View<int *, ExecutionSpace> offset("Example::offset_ref", 0);
-    bvh.query(space, predicates, indices, offset);
+    Kokkos::View<int *, ExecutionSpace> values("Example::values", 20);
+    Kokkos::View<int *, ExecutionSpace> offsets("Example::offsets",
+                                                npredicates + 1);
 
-    out_count = indices.extent(0);
+    Foo foo{bvh, ArborX::Details::AccessValues<Dummy>{predicates},
+            SomeCallback{}};
 
-    std::cout << "offset (bvh): " << offset << std::endl;
-    std::cout << "indices (bvh): " << indices << std::endl;
-  }
+    // ALGO START HERE
+    int total_count;
+    Kokkos::parallel_scan(
+        Kokkos::RangePolicy(space, 0, npredicates),
+        KOKKOS_LAMBDA(int i, int &partial_count, bool is_final) {
+          int count = 0;
+          desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
+                                   desul::MemoryScopeDevice>
+              ref{count};
+          if (!is_final)
+          {
+            foo(
+                i, KOKKOS_LAMBDA() { ++ref; });
 
-  {
-    ArborX::BruteForce brute{space, primitives, indexable_getter};
+            partial_count += count;
+          }
+          else
+          {
+            auto offset_i = offsets(i);
+            foo(
+                i, KOKKOS_LAMBDA(auto val) { values[offset_i + ref++] = val; });
+            partial_count += count;
+            offsets[i + 1] = partial_count;
+          }
+        },
+        total_count);
+    Kokkos::printf("total count %d\n", total_count);
 
-    Kokkos::View<int *, ExecutionSpace> indices("Example::indices", 0);
-    Kokkos::View<int *, ExecutionSpace> offset("Example::offset", 0);
-    brute.query(space, predicates, indices, offset);
-
-    // The offset output should match the one from bvh. The indices output
-    // should have the same indices for each offset entry, but they may be
-    // in a different order.
-    std::cout << "offset (bf): " << offset << std::endl;
-    std::cout << "indices (bf): " << indices << std::endl;
-
-    if (indices.extent(0) != out_count)
-      Kokkos::abort("The sizes of indices do not match");
+    std::cout << "offsets (bvh): " << offsets << std::endl;
+    std::cout << "values (bvh): " << values << std::endl;
   }
 
   return 0;
 }
+

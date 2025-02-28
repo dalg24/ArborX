@@ -488,6 +488,12 @@ struct TreeTraversal<BVH, Predicates, Callback, OrderedSpatialPredicateTag>
   }
 };
 
+struct IgnoreFakePredicates
+{};
+template <class BVH, class Callback>
+TreeTraversal(BVH const &bvh, Callback const &callback)
+    -> TreeTraversal<BVH, IgnoreFakePredicates, Callback, SpatialPredicateTag>;
+
 template <typename ExecutionSpace, typename BVH, typename Predicates,
           typename Callback>
 void traverse(ExecutionSpace const &space, BVH const &bvh,
