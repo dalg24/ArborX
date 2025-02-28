@@ -13,7 +13,6 @@
 
 #include <Kokkos_Core.hpp>
 
-#include <cstdlib>
 #include <iostream>
 
 struct Dummy
