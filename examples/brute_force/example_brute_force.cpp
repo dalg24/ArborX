@@ -83,38 +83,14 @@ std::ostream &operator<<(std::ostream &os, View const &view)
   return os;
 }
 
-struct Count
-{};
-struct Fill
-{};
-
-struct CountingCallback
+struct SomeCallback
 {
-  using AtomicRef = desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
-                                             desul::MemoryScopeDevice>;
-  AtomicRef count_;
-  template <class Predicate, class Value>
-  KOKKOS_FUNCTION void operator()(Predicate, Value) const
-  {
-    // Kokkos::printf("bim\n");
-    ++count_;
-  }
-};
-struct FillingCallback
-{
-  using AtomicRef = desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
-                                             desul::MemoryScopeDevice>;
-  AtomicRef count_;
-  using OutputView = Kokkos::View<int *>;
-  OutputView out_;
-  template <class Predicate, class Value>
-  KOKKOS_FUNCTION void operator()(Predicate, Value const &value) const
-  {
-    // Kokkos::printf("bam\n");
-    out_[count_++] = value;
-  }
+  template <class P, class V>
+  KOKKOS_FUNCTION void operator()(P, V) const
+  {}
 };
 
+// ARBORX INTERNALS
 template <class Callback, class Out>
 struct CallbackWrapper
 {
@@ -163,13 +139,7 @@ struct Foo
     traverse(predicates_(i));
   }
 };
-
-struct SomeCallback
-{
-  template <class P, class V>
-  KOKKOS_FUNCTION void operator()(P, V) const
-  {}
-};
+// END ARBORX INTERNALS
 
 template <class ExecutionSpace, class Functor, class Offsets, class Values>
 void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
