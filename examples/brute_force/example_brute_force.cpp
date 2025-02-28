@@ -102,6 +102,7 @@ struct CallbackWrapper
     if constexpr (std::is_invocable_v<Out const &, Value const &>)
     {
       out_(value);
+      callback_(predicate, value);
     }
     else if constexpr (std::is_invocable_v<Out const &>)
     {
@@ -111,7 +112,6 @@ struct CallbackWrapper
     {
       static_assert(std::is_void_v<Out>);
     }
-    callback_(predicate, value);
   }
 };
 
@@ -150,7 +150,6 @@ void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
         if (!is_final)
         {
           fun(i, [&count] { ++count; });
-
           partial_count += count;
         }
         else
