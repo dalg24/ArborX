@@ -12,13 +12,9 @@
 #include <ArborX.hpp>
 
 #include <Kokkos_Core.hpp>
-#include <Kokkos_Macros.hpp>
 
 #include <cstdlib>
 #include <iostream>
-
-#include <desul/atomics/Atomic_Ref.hpp>
-#include <desul/atomics/Common.hpp>
 
 struct Dummy
 {
