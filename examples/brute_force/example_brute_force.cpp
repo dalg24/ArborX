@@ -131,11 +131,11 @@ struct Foo
       , predicates_(predicates)
       , callback_(callback)
   {}
-  template <class IncrementCounter>
-  KOKKOS_FUNCTION void operator()(int i, IncrementCounter const &counter) const
+  template <class OutputFunctor>
+  KOKKOS_FUNCTION void operator()(int i, OutputFunctor const &out) const
   {
-    ArborX::Details::TreeTraversal traverse(
-        bvh_, CallbackWrapper(callback_, counter));
+    ArborX::Details::TreeTraversal traverse(bvh_,
+                                            CallbackWrapper(callback_, out));
     traverse(predicates_(i));
   }
 };
