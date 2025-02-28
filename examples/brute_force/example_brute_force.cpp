@@ -97,7 +97,7 @@ struct CallbackWrapper
   {}
   template <class Predicate, class Value>
   KOKKOS_FUNCTION void operator()(Predicate const &predicate,
-                                  Value const &value) const
+                                  [[maybe_unused]] Value const &value) const
   {
     if constexpr (std::is_invocable_v<Out const &, Value const &>)
     {
