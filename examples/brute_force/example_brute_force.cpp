@@ -219,7 +219,6 @@ void theAlgoWithNoNameV2(ExecutionSpace const space, Functor const &fun,
         partial_count += offset_i;
       },
       total_count);
-  Kokkos::printf("total count %d\n", total_count);
   Kokkos::resize(Kokkos::view_alloc(Kokkos::WithoutInitializing, space), values,
                  total_count);
   Kokkos::parallel_for(
