@@ -143,13 +143,13 @@ void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
   int n = offsets.extent(0) + 1;
   int const max_storage = values.extent(0);
   int total_count;
+  using AtomicRef = desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
+                                             desul::MemoryScopeDevice>;
   Kokkos::parallel_scan(
       Kokkos::RangePolicy(space, 0, n),
       KOKKOS_LAMBDA(int i, int &partial_count, bool is_final) {
         int count = 0;
-        desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
-                                 desul::MemoryScopeDevice>
-            ref{count};
+        AtomicRef ref{count};
         if (!is_final)
         {
           fun(
@@ -191,9 +191,7 @@ void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
   Kokkos::parallel_for(
       Kokkos::RangePolicy{space, restart_index, n}, KOKKOS_LAMBDA(int i) {
         int count = 0;
-        desul::scoped_atomic_ref<int, desul::MemoryOrderRelaxed,
-                                 desul::MemoryScopeDevice>
-            ref{count};
+        AtomicRef ref{count};
         auto offset_i = offsets[i];
         fun(
             i, KOKKOS_LAMBDA(auto val) {
