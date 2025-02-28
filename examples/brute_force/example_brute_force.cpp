@@ -154,7 +154,7 @@ void theAlgoWithNoName(ExecutionSpace const space, Functor const &fun,
         }
         else
         {
-          auto offset_i = offsets[i];
+          auto offset_i = partial_count;
           fun(i, [&](typename Values::value_type const &val) {
             auto pos = offset_i + count++;
             if (pos < max_storage)
